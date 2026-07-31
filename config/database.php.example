@@ -1,0 +1,10 @@
+<?php
+
+return [
+    'host' => 'localhost',
+    'port' => '3306',
+    'database' => 'idcard_system', // Ganti dengan nama database Anda
+    'username' => 'root', // Ganti dengan username DB Anda
+    'password' => '', // Ganti dengan password DB Anda
+    'charset' => 'utf8mb4',
+];

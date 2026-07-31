@@ -1,0 +1,19 @@
+<?php
+
+// Configuration for scripts/sync_from_cloud.php - the bridge between the
+// Supabase-backed mobile apps and this local MySQL database.
+// Copy this file to config/mobile_sync.php (gitignored) and fill in real
+// values. Never commit the real file - this repo is public.
+
+return [
+    'vercel_base_url' => '', // e.g. 'https://idcard-mobile.vercel.app' (no trailing slash)
+
+    // Must match SYNC_API_KEY in mobile-app/.env.local AND the Vercel
+    // project's environment variables (Settings -> Environment Variables)
+    // once deployed - it's a shared secret, not a Supabase key.
+    'sync_api_key' => 'ganti-dengan-string-acak-panjang',
+
+    // How this local server is reachable from a browser - used to build
+    // full photo URLs for the P2K3 app's QR-scan lookup (synced_contractors).
+    'local_base_url' => 'http://192.168.20.17:8081/idcard/public',
+];

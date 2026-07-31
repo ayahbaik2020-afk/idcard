@@ -1,0 +1,37 @@
+# Local config with real credentials - copy the .example file instead
+/config/database.php
+/config/mobile_sync.php
+
+# Dependencies (installed via composer install, don't need to be in git)
+/vendor/
+
+# Log files
+/scripts/*.log
+/mobile-app/*.log
+/mobile-app/dev_out.log
+/mobile-app/dev_err.log
+
+# User-uploaded data (contractor photos, KTP scans, logos, videos) —
+# real personal data, shouldn't live in a git repo.
+/public/uploads/
+
+# Legacy backup folders created during bug-fix cleanup (2026-07-31)
+# NOTE: the folder/file this used to point to have since been deleted -
+# these two lines are now safe to remove too, kept only in case the same
+# stray-backup pattern reappears from an editor/tool doing the same thing.
+/public/_legacy_duplicate_public_backup/
+/_legacy_check_bg.php.bak
+
+# Ad-hoc backup files some editors/tools create (e.g. Desktop Commander,
+# VS Code autosave-before-edit). These should never be committed or left
+# sitting in the working tree - see database/migrations for how schema
+# changes are tracked instead of copy-pasting a .bak file.
+*.bak
+*.bak_*
+*.orig
+
+# OS / editor cruft
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
