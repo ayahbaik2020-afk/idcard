@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { supabase, type ActiveBan } from "@/lib/supabase";
-import { scanKtp, type KtpOcrResult } from "@/lib/ocr";
+import { scanKtp, isPlausibleNik, type KtpOcrResult } from "@/lib/ocr";
 import { useSyncStatus } from "@/lib/useSyncStatus";
 import CameraCapture from "@/components/CameraCapture";
 
@@ -18,6 +18,72 @@ const PLANTS = [
 const NEW_COMPANY_VALUE = "__new__";
 
 type Step = "company" | "ktp" | "blacklist" | "photo" | "done";
+
+/** Per-field read-quality status shown to the user right after OCR, so a
+ * silently-empty or structurally-implausible field is visible immediately
+ * instead of just looking like an ordinary blank input. This does NOT
+ * confirm a field is correct - only that it's worth (or not worth) a
+ * second look before continuing. */
+type FieldStatus = "ok" | "warn" | "empty";
+
+function nikFieldStatus(value: string): FieldStatus {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "empty";
+  if (digits.length !== 16) return "warn";
+  return isPlausibleNik(digits) ? "ok" : "warn";
+}
+
+function textFieldStatus(value: string, minLen: number): FieldStatus {
+  const trimmed = value.trim();
+  if (!trimmed) return "empty";
+  return trimmed.length < minLen ? "warn" : "ok";
+}
+
+const FIELD_STATUS_STYLE: Record<
+  FieldStatus,
+  { icon: string; label: string; className: string }
+> = {
+  ok: {
+    icon: "\u2713",
+    label: "Terbaca",
+    className: "border-green-900 bg-green-950/30 text-green-300",
+  },
+  warn: {
+    icon: "\u26A0",
+    label: "Perlu dicek",
+    className: "border-amber-900 bg-amber-950/30 text-amber-300",
+  },
+  empty: {
+    icon: "\u2717",
+    label: "Tidak terbaca",
+    className: "border-red-900 bg-red-950/30 text-red-300",
+  },
+};
+
+function FieldStatusRow({
+  label,
+  value,
+  status,
+}: {
+  label: string;
+  value: string;
+  status: FieldStatus;
+}) {
+  const s = FIELD_STATUS_STYLE[status];
+  return (
+    <div
+      className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs ${s.className}`}
+    >
+      <div className="flex flex-col min-w-0">
+        <span className="opacity-70">{label}</span>
+        <span className="truncate font-mono">{value || "(kosong)"}</span>
+      </div>
+      <span className="shrink-0 font-medium whitespace-nowrap">
+        {s.icon} {s.label}
+      </span>
+    </div>
+  );
+}
 
 export default function RegisterPage() {
   const [step, setStep] = useState<Step>("company");
@@ -285,13 +351,45 @@ export default function RegisterPage() {
             </div>
           )}
           {ktpFile && !ocrResult && (
-            <p className="text-sm text-slate-400">
-              Membaca KTP... {ocrProgress}%
-            </p>
+            <div className="flex flex-col gap-1.5">
+              <p className="text-sm text-slate-400">
+                Membaca KTP (NIK, Nama, Alamat)... {ocrProgress}%
+              </p>
+              <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-blue-600 transition-all duration-200"
+                  style={{ width: `${ocrProgress}%` }}
+                />
+              </div>
+            </div>
           )}
 
           {ktpFile && (
             <div className="flex flex-col gap-3">
+              {ocrResult && (
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs text-slate-400">
+                    Hasil pemindaian sistem — cocokkan dengan KTP asli
+                    sebelum lanjut. Status ini ikut update saat kamu koreksi
+                    field di bawah.
+                  </p>
+                  <FieldStatusRow
+                    label="NIK"
+                    value={nik}
+                    status={nikFieldStatus(nik)}
+                  />
+                  <FieldStatusRow
+                    label="Nama"
+                    value={nama}
+                    status={textFieldStatus(nama, 3)}
+                  />
+                  <FieldStatusRow
+                    label="Alamat"
+                    value={alamat}
+                    status={textFieldStatus(alamat, 8)}
+                  />
+                </div>
+              )}
               <label className="text-sm text-slate-300">
                 NIK (16 digit) — periksa/koreksi hasil scan
                 <input
@@ -319,6 +417,16 @@ export default function RegisterPage() {
                   className="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-3"
                 />
               </label>
+              {ocrResult?.rawText && (
+                <details className="rounded-lg border border-slate-800 bg-slate-950/50 text-xs">
+                  <summary className="cursor-pointer select-none px-3 py-2 text-slate-400">
+                    Lihat teks mentah hasil OCR (untuk debug bila masih salah baca)
+                  </summary>
+                  <pre className="whitespace-pre-wrap break-words px-3 pb-3 text-slate-500 font-mono">
+                    {ocrResult.rawText}
+                  </pre>
+                </details>
+              )}
               <button
                 disabled={checking}
                 onClick={checkBlacklistAndContinue}

@@ -12,6 +12,35 @@ function digitsOnly(s: string): string {
   return s.replace(/\D/g, "");
 }
 
+/** Common OCR letter/digit confusions on the KTP's numeric fonts (seen in
+ * practice and in other Indonesian-KTP OCR projects, e.g.
+ * github.com/YukaLangbuana/KTP-OCR which normalizes "?" -> "7"). Applied
+ * ONLY to candidate strings already identified as "this is probably the
+ * NIK", not to the whole document, so it can't corrupt Nama/Alamat text
+ * where those same letters are legitimate. */
+function normalizeOcrDigits(s: string): string {
+  return s
+    .replace(/[oOQD]/g, "0")
+    .replace(/[iIlL|!]/g, "1")
+    .replace(/[zZ]/g, "2")
+    .replace(/[sS]/g, "5")
+    .replace(/[bB]/g, "8")
+    .replace(/[gG]/g, "6")
+    .replace(/\?/g, "7");
+}
+
+/** Structural check against the official NIK format (PP No. 37/2007 pasal
+ * 37): province+regency+district code, then DOB-derived digits (day is
+ * offset +40 for women), then a 4-digit serial. This can't confirm a NIK
+ * is real, but a NIK that fails this shape is almost certainly an OCR
+ * misread worth flagging for extra scrutiny before the user submits. */
+const NIK_SHAPE =
+  /^(1[1-9]|21|[37][1-6]|5[1-3]|6[1-5]|[89][12])\d{2}\d{2}([04][1-9]|[1256]\d|[37][01])(0[1-9]|1[0-2])\d{2}\d{4}$/;
+
+export function isPlausibleNik(nik: string): boolean {
+  return NIK_SHAPE.test(nik);
+}
+
 /**
  * KTP fields in the order they physically appear on an Indonesian KTP.
  * Used to segment raw OCR text into fields: a line that matches one of
@@ -78,16 +107,27 @@ function parseKtpFields(lines: string[]): Record<string, string> {
 }
 
 /** Tolerant NIK extraction: OCR frequently inserts stray spaces between
- * digits, so a strict /\d{16}/ match often fails even when every digit
- * was read correctly. */
+ * digits and misreads some digits as similar-looking letters, so a
+ * strict /\d{16}/ match often fails even when the number was read
+ * essentially correctly. Letter->digit normalization is deliberately
+ * scoped to text near the "NIK" label only (never the whole card), so it
+ * can't accidentally turn part of the Nama/Alamat text into a fake NIK. */
 function extractNik(text: string, lines: string[]): string {
   const nikLineIdx = lines.findIndex((l) => /\bNIK\b/i.test(l));
   if (nikLineIdx !== -1) {
     for (const candidate of [lines[nikLineIdx], lines[nikLineIdx + 1] ?? ""]) {
-      const d = digitsOnly(candidate);
-      if (d.length === 16) return d;
+      const normalized = digitsOnly(normalizeOcrDigits(candidate));
+      if (normalized.length === 16) return normalized;
+    }
+    const nearby = `${lines[nikLineIdx]} ${lines[nikLineIdx + 1] ?? ""}`;
+    const runs = nearby.match(/[\dOoQDiIlL|!zZsSbBgG?]{16,24}/g) ?? [];
+    for (const run of runs) {
+      const normalized = digitsOnly(normalizeOcrDigits(run));
+      if (normalized.length === 16) return normalized;
     }
   }
+  // Last resort: pure digit-with-spaces run anywhere in the document (no
+  // letter normalization here - too risky to apply card-wide).
   const spacedRuns = text.match(/\d[\d ]{14,22}\d/g) ?? [];
   for (const run of spacedRuns) {
     const d = digitsOnly(run);

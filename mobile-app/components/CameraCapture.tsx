@@ -50,15 +50,53 @@ export default function CameraCapture({ onCapture, frameLabel, aspect = "card" }
     };
   }, []);
 
+  // How much of the container the dashed guide box insets on each side,
+  // as a fraction (must match the `inset-[GUIDE_INSET*100%]` class below).
+  // Using a fraction (not a fixed px) keeps the math correct regardless of
+  // the device's actual rendered container size.
+  const GUIDE_INSET = 0.06;
+
   function capture() {
     const video = videoRef.current;
     if (!video || !video.videoWidth) return;
+
+    // The video element is displayed with object-fit:cover inside a
+    // fixed-aspect container (3:2 for card, 3:4 for portrait), and the
+    // dashed guide box is inset GUIDE_INSET from the container's edges.
+    // The raw video stream's native resolution/aspect usually differs
+    // from the container, so previously the FULL raw frame was captured
+    // regardless of what the guide box showed - including background
+    // outside the card. Replicate the same "cover" math here so the
+    // captured image matches exactly what the user saw inside the guide.
+    const containerAspect = aspect === "card" ? 3 / 2 : 3 / 4;
+    const videoAspect = video.videoWidth / video.videoHeight;
+
+    let coverWidth: number, coverHeight: number, coverX: number, coverY: number;
+    if (videoAspect > containerAspect) {
+      // Video is relatively wider than the container -> cover crops the sides.
+      coverHeight = video.videoHeight;
+      coverWidth = video.videoHeight * containerAspect;
+      coverX = (video.videoWidth - coverWidth) / 2;
+      coverY = 0;
+    } else {
+      // Video is relatively taller/narrower -> cover crops top/bottom.
+      coverWidth = video.videoWidth;
+      coverHeight = video.videoWidth / containerAspect;
+      coverX = 0;
+      coverY = (video.videoHeight - coverHeight) / 2;
+    }
+
+    const sx = coverX + coverWidth * GUIDE_INSET;
+    const sy = coverY + coverHeight * GUIDE_INSET;
+    const sWidth = coverWidth * (1 - 2 * GUIDE_INSET);
+    const sHeight = coverHeight * (1 - 2 * GUIDE_INSET);
+
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = Math.round(sWidth);
+    canvas.height = Math.round(sHeight);
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.drawImage(video, 0, 0);
+    ctx.drawImage(video, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
     canvas.toBlob(
       (blob) => {
         if (blob) {
@@ -110,7 +148,7 @@ export default function CameraCapture({ onCapture, frameLabel, aspect = "card" }
           </div>
         )}
         {ready && (
-          <div className="absolute inset-4 border-2 border-dashed border-white/70 rounded-lg pointer-events-none" />
+          <div className="absolute inset-[6%] border-2 border-dashed border-white/70 rounded-lg pointer-events-none" />
         )}
       </div>
       {frameLabel && (
