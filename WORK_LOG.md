@@ -18,25 +18,19 @@
 > asumsi awal dari diskusi 2026-08-01 — sesuaikan kalau ada
 > pertimbangan lain dari lapangan.
 
-1. **[Safety/akses] Man power expired masih bisa aktif masuk plant** —
-   prioritas tertinggi karena ini celah keamanan fisik (bukan cuma
-   masalah data): tidak ada menu/filter yang memisahkan kontraktor
-   expired dari yang aktif, tidak ada proteksi yang mencegah mereka
-   scan masuk ke plant, dan tidak ada alur perpanjangan (renewal)
-   dengan update NIK/KTP terbaru.
-2. **[Integritas data] Tidak ada proteksi KTP duplikat** saat
+1. **[Integritas data] Tidak ada proteksi KTP duplikat** saat
    registrasi — NIK yang sudah terdaftar bisa didaftarkan ulang,
    berisiko data ganda yang makin menumpuk selama belum diperbaiki.
    Perlu validasi cek NIK existing sebelum submit.
-3. **[Akurasi/UX] OCR KTP — hasil tes terbaru user** (setelah fix
+2. **[Akurasi/UX] OCR KTP — hasil tes terbaru user** (setelah fix
    `eng`+PSM): via kamera HP, Nama & NIK sudah terbaca benar tapi
    **Alamat masih belum**. Via upload file dari browser (bukan live
    camera), **cuma NIK yang berhasil kebaca** (Nama/Alamat gagal) —
    kemungkinan jalur upload file tidak lewat preprocessing/crop yang
    sama dengan jalur live camera, perlu ditelusuri. Prioritas lebih
-   rendah dari #1/#2 karena fungsi inti (NIK) sudah jalan di kedua
+   rendah dari #1 karena fungsi inti (NIK) sudah jalan di kedua
    jalur, ini penyempurnaan.
-4. **Deploy Vercel (`idcard-brown-delta`) sempat 2 commit tertinggal**
+3. **Deploy Vercel (`idcard-brown-delta`) sempat 2 commit tertinggal**
    (`4ae8fce`, `5dff99c` tidak auto-deploy, stuck di commit `197d705`
    selama ~2 jam) — root cause pastinya belum dikonfirmasi (dugaan:
    push oleh akun GitHub `IT-Merak` yang mungkin bukan member tim
@@ -46,25 +40,56 @@
    Vercel dashboard (tab Deployments untuk status "Skipped"/"Failed",
    dan Settings → Git untuk daftar member tim) supaya commit-commit
    selanjutnya tidak mengalami hal sama.
-5. **File tidak terkait masih belum di-commit** di working tree:
-   `.gitignore`, `composer.json`, `phpunit.xml`, `tests/` — kelihatannya
-   pekerjaan setup testing PHP dari sesi lain, sengaja tidak disentuh.
-   Perlu diklarifikasi ke pemiliknya sebelum di-commit/dibuang.
-6. **PVC PLANT**: belum ada satupun record attendance tercatat di
+4. **PVC PLANT**: belum ada satupun record attendance tercatat di
    database (beda dengan EDC/VCM yang sudah dikonfirmasi ada bug
    mismatch nama plant). Belum jelas apakah PVC juga ada bug serupa
    atau memang belum pernah dipakai — perlu dicoba scan langsung di
    plant-display PVC untuk konfirmasi.
-7. **Data historis `work_hours`** yang mungkin sudah kadung salah
+5. **Data historis `work_hours`** yang mungkin sudah kadung salah
    dihitung (dari bug sesi >24 jam yang sudah diperbaiki) belum
    dikoreksi — perbaikan yang sudah jalan cuma berlaku untuk
    perhitungan baru ke depan.
-8. **Redesign plant-display**: sudah dites lewat code review + PHP
+6. **Redesign plant-display**: sudah dites lewat code review + PHP
    lint, **belum dikonfirmasi tampilannya langsung di layar TV/tablet
    plant** (terutama kontras warna kartu vs video, ukuran font di
    layar besar, dan posisi scanner pojok kanan-bawah).
 
 ## ✅ Selesai
+
+### 2026-08-01 — Man power expired masih bisa aktif masuk plant (was #1)
+- Root cause: `AttendanceController::scan()` cuma cek `status == 'Banned'`,
+  tidak pernah cek `expiry_date` sama sekali — kontraktor expired tapi
+  status masih `Active` bisa scan masuk/keluar bebas tanpa hambatan.
+- Fix: tambah pengecekan `expiry_date < CURDATE()` di kedua titik
+  CHECK-IN (first-ever & re-entry setelah check-out) — **CHECK-OUT
+  tetap selalu diizinkan** supaya siapa pun yang sudah terlanjur di
+  dalam saat kartunya expired tetap bisa check-out normal.
+- Ditest langsung ke data asli (kontraktor id_card `25.0034`, expired
+  2025-11-14): scan ditolak dengan pesan jelas, dikonfirmasi tidak ada
+  row `attendances` baru yang tercipta.
+- `plant_display.php`: kotak pesan kuning "ID CARD EXPIRED" terpisah
+  dari kotak error generik.
+- Dashboard: card baru "MAN POWER EXPIRED" (jumlah + link ke daftar
+  yang sudah difilter).
+- Daftar kontraktor: filter status "⚠ Expired" (virtual, dihitung dari
+  `expiry_date`, bukan value asli di kolom `status`) + badge kuning
+  inline di kolom tanggal expired.
+- Alur perpanjangan: **tidak perlu UI baru** — form Edit kontraktor
+  yang sudah ada memang sudah bisa mengubah `expiry_date` (dan KTP no.
+  kalau perlu), jadi cukup dipakai langsung begitu admin lihat badge
+  Expired-nya.
+- Commit `c6547dc`, sudah di-push ke `origin/main`.
+
+### 2026-08-01 — Setup PHPUnit untuk unit test `src/Support/`
+- `composer.json` (script `test`), `phpunit.xml`, `tests/bootstrap.php`,
+  `tests/Support/{IdCardNumberFormatter,Paginator,WorkHoursCalculator}Test.php`
+  — sebelumnya untracked/menggantung, sudah dikonfirmasi aman (17 test,
+  semua lolos) dan di-commit.
+- `templates/plant_display.php`: glass-card background diringankan
+  jadi `rgba(255,255,255,0.10)` sesuai catatan redesign 2026-07-30.
+- Commit `bf8d297`, sudah di-push.
+
+
 
 ### 2026-08-01 — OCR KTP kacau total: root cause & fix (bahasa Tesseract)
 - User lapor hasil OCR kacau total di device asli setelah commit
