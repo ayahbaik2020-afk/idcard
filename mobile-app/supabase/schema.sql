@@ -13,6 +13,7 @@ create table if not exists staging_contractors (
   name text not null,
   company_name text not null,
   plant_location text not null,
+  alamat text,
   ktp_photo_url text,
   face_photo_url text,
   ocr_raw jsonb,
@@ -79,6 +80,14 @@ create table if not exists synced_sanction_history (
 );
 create index if not exists idx_synced_sanction_history_ktp on synced_sanction_history(ktp_no);
 
+-- Penanda kapan sinkronisasi terakhir dari server lokal berhasil - dipakai
+-- oleh app mobile untuk menampilkan status "data sudah/belum terbaru"
+-- sebelum user diizinkan lanjut registrasi (lihat app/register/page.tsx).
+create table if not exists sync_meta (
+  key text primary key,
+  updated_at timestamptz not null default now()
+);
+
 -- RLS: browser (anon key) hanya boleh INSERT staging + SELECT data yang
 -- sudah di-sync turun dari lokal. Tidak boleh update/delete langsung dari HP.
 alter table staging_contractors enable row level security;
@@ -87,6 +96,7 @@ alter table synced_active_bans enable row level security;
 alter table contractor_companies_cache enable row level security;
 alter table synced_contractors enable row level security;
 alter table synced_sanction_history enable row level security;
+alter table sync_meta enable row level security;
 
 create policy "anon insert staging_contractors" on staging_contractors
   for insert to anon with check (true);
@@ -99,6 +109,8 @@ create policy "anon read companies_cache" on contractor_companies_cache
 create policy "anon read synced_contractors" on synced_contractors
   for select to anon using (true);
 create policy "anon read synced_sanction_history" on synced_sanction_history
+  for select to anon using (true);
+create policy "anon read sync_meta" on sync_meta
   for select to anon using (true);
 
 -- Storage bucket untuk foto KTP & foto wajah (buat lewat dashboard Storage,

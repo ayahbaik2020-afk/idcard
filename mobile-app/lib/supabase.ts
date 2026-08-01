@@ -20,6 +20,7 @@ export type StagingContractor = {
   id: string;
   ktp_no: string;
   name: string;
+  alamat: string | null;
   company_name: string;
   plant_location: string;
   ktp_photo_url: string | null;
@@ -49,5 +50,15 @@ export type ActiveBan = {
   is_permanent: boolean;
   end_date: string | null;
   reason: string | null;
+  updated_at: string;
+};
+
+export type CompanyCache = {
+  name: string;
+  synced_at: string;
+};
+
+export type SyncMeta = {
+  key: string;
   updated_at: string;
 };

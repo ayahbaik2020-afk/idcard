@@ -31,6 +31,11 @@ export default function P2K3Page() {
   const [loadingProfile, setLoadingProfile] = useState(false);
   const [profile, setProfile] = useState<ContractorProfile | null>(null);
   const [history, setHistory] = useState<SanctionHistoryRow[]>([]);
+  // Bumped every time we need to (re)start the camera while already on the
+  // "scan" screen (e.g. after a failed/not-found scan) - `screen` alone
+  // doesn't change in that case, so the effect below wouldn't re-run
+  // without this, leaving the camera frozen after any failed scan.
+  const [scanAttempt, setScanAttempt] = useState(0);
   const scannerDivId = "p2k3-qr-reader";
   const html5QrRef = useRef<import("html5-qrcode").Html5Qrcode | null>(null);
 
@@ -67,10 +72,18 @@ export default function P2K3Page() {
 
     return () => {
       cancelled = true;
-      html5QrRef.current?.stop().catch(() => {});
+      const scanner = html5QrRef.current;
+      html5QrRef.current = null;
+      if (!scanner) return;
+      scanner
+        .stop()
+        .catch(() => {})
+        .finally(() => {
+          scanner.clear();
+        });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen]);
+  }, [screen, scanAttempt]);
 
   async function loadProfile(idCard: string) {
     setLoadingProfile(true);
@@ -87,6 +100,7 @@ export default function P2K3Page() {
           `Kartu "${idCard}" tidak ditemukan di data yang sudah tersinkron. Coba scan ulang setelah sync berikutnya.`
         );
         setScreen("scan");
+        setScanAttempt((n) => n + 1);
         return;
       }
 
@@ -104,6 +118,7 @@ export default function P2K3Page() {
       console.error(e);
       setScanError("Gagal memuat data. Periksa koneksi internet.");
       setScreen("scan");
+      setScanAttempt((n) => n + 1);
     } finally {
       setLoadingProfile(false);
     }
@@ -123,9 +138,17 @@ export default function P2K3Page() {
             <p className="text-sm text-slate-400">Memuat profil...</p>
           )}
           {scanError && (
-            <p className="text-sm text-red-400 bg-red-950/50 border border-red-900 rounded-lg p-3">
-              {scanError}
-            </p>
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-red-400 bg-red-950/50 border border-red-900 rounded-lg p-3">
+                {scanError}
+              </p>
+              <button
+                onClick={() => setScanAttempt((n) => n + 1)}
+                className="rounded-xl bg-slate-800 px-6 py-3 font-medium text-sm"
+              >
+                Coba Scan Lagi
+              </button>
+            </div>
           )}
           <p className="text-xs text-slate-500">
             Arahkan kamera ke QR code pada kartu ID kontraktor.

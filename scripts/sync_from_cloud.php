@@ -140,6 +140,7 @@ foreach ($pendingContractors as $row) {
         $result = $service->createFromMobileSync([
             'ktp_no' => $row['ktp_no'],
             'name' => $row['name'],
+            'alamat' => $row['alamat'] ?? null,
             'company_name' => $row['company_name'],
             'plant_location' => $row['plant_location'],
             'mobile_sync_id' => $row['id'],
@@ -149,7 +150,7 @@ foreach ($pendingContractors as $row) {
             sync_log("  + Kontraktor baru: {$row['name']} ({$row['ktp_no']}) -> id_card {$result['id_card']}");
             $ackContractors[] = ['id' => $row['id'], 'status' => 'synced'];
         } else {
-            sync_log("  ! Dilewati (duplikat): {$row['name']} ({$row['ktp_no']}) - {$result['message']}");
+            sync_log("  ! Dilewati ({$row['name']} / {$row['ktp_no']}): {$result['message']}");
             $ackContractors[] = ['id' => $row['id'], 'status' => 'rejected', 'message' => $result['message']];
         }
     } catch (Throwable $e) {
@@ -203,13 +204,15 @@ $snapshots = $service->getSyncSnapshots();
     'active_bans' => $snapshots['active_bans'],
     'contractors' => $snapshots['contractors'],
     'sanction_history' => $snapshots['sanction_history'],
+    'companies' => $snapshots['companies'],
     'local_base_url' => $syncConfig['local_base_url'],
 ], $headers);
 
 if ($pushCode === 200) {
     sync_log('Push OK: ' . count($snapshots['active_bans']) . ' active bans, '
         . count($snapshots['contractors']) . ' kontraktor, '
-        . count($snapshots['sanction_history']) . ' histori sanksi.');
+        . count($snapshots['sanction_history']) . ' histori sanksi, '
+        . count($snapshots['companies']) . ' PT.');
 } else {
     sync_log('ERROR: push gagal (HTTP ' . $pushCode . '): ' . json_encode($pushResult));
     exit(1);

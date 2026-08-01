@@ -293,6 +293,10 @@ class ContractorService
             return ['status' => 'duplicate', 'message' => 'KTP sudah terdaftar di sistem lokal'];
         }
 
+        if (empty(trim($data['name'] ?? ''))) {
+            return ['status' => 'invalid', 'message' => 'Nama kosong, dilewati (perlu diisi manual dari mobile app)'];
+        }
+
         $data['company_id'] = $this->resolveCompanyId('new_company', $data['company_name'] ?? '');
 
         $year_prefix = date('y');
@@ -303,6 +307,7 @@ class ContractorService
         $data['qr_code'] = $this->generateQrCode($data['id_card']);
         $data['registration_date'] = $data['registration_date'] ?? date('Y-m-d');
         $data['status'] = $data['status'] ?? 'Active';
+        // alamat is optional (OCR may not have read it); passed through as-is.
 
         $id = $this->contractorRepo->insertContractorFromMobile($data);
         $this->contractorRepo->logActivity('create', 'contractors', $id, "Created contractor from mobile sync: {$data['name']}");
@@ -351,6 +356,7 @@ class ContractorService
             'active_bans' => $this->contractorRepo->getActiveBansSnapshot(),
             'contractors' => $this->contractorRepo->getContractorsSnapshot(),
             'sanction_history' => $this->contractorRepo->getSanctionHistorySnapshot(),
+            'companies' => $this->contractorRepo->getCompanyNamesSnapshot(),
         ];
     }
 

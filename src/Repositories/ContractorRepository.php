@@ -245,9 +245,9 @@ class ContractorRepository
      */
     public function insertContractorFromMobile($data)
     {
-        $stmt = $this->pdo->prepare("INSERT INTO contractors (id_card, ktp_no, name, company_id, plant_location, registration_date, expiry_date, photo, qr_code, status, source, mobile_sync_id, synced_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'mobile', ?, NOW())");
+        $stmt = $this->pdo->prepare("INSERT INTO contractors (id_card, ktp_no, alamat, name, company_id, plant_location, registration_date, expiry_date, photo, qr_code, status, source, mobile_sync_id, synced_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'mobile', ?, NOW())");
         $stmt->execute([
-            $data['id_card'], $data['ktp_no'], $data['name'], $data['company_id'],
+            $data['id_card'], $data['ktp_no'], $data['alamat'] ?? null, $data['name'], $data['company_id'],
             $data['plant_location'], $data['registration_date'], $data['expiry_date'] ?? null,
             $data['photo'] ?? null, $data['qr_code'] ?? null, $data['status'] ?? 'Active',
             $data['mobile_sync_id']
@@ -320,6 +320,17 @@ class ContractorRepository
              JOIN contractors c ON c.id = s.contractor_id"
         );
         return $stmt->fetchAll();
+    }
+
+    /**
+     * List of company names already known locally, pushed up to Supabase
+     * `contractor_companies_cache` so the registration app can offer a
+     * dropdown instead of free-text (reduces duplicate/typo'd PT names).
+     */
+    public function getCompanyNamesSnapshot()
+    {
+        $stmt = $this->pdo->query("SELECT name FROM contractor_companies ORDER BY name");
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
     public function updateContractor($id, $data)

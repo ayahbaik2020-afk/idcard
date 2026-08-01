@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { supabase, type ActiveBan } from "@/lib/supabase";
+import { useEffect, useState } from "react";
+import { supabase, type ActiveBan, type CompanyCache } from "@/lib/supabase";
 import { scanKtp, type KtpOcrResult } from "@/lib/ocr";
 
 const PLANTS = [
@@ -13,11 +13,26 @@ const PLANTS = [
   "HPI PLANT",
 ];
 
+const NEW_COMPANY_VALUE = "__new__";
+
 type Step = "company" | "ktp" | "blacklist" | "photo" | "done";
+type SyncStatus = "idle" | "loading" | "ok" | "error";
 
 export default function RegisterPage() {
   const [step, setStep] = useState<Step>("company");
-  const [company, setCompany] = useState("");
+
+  // --- Fitur 1: gate sinkronisasi data sebelum boleh lanjut ---
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  // --- Fitur 2: dropdown PT ---
+  const [companies, setCompanies] = useState<string[]>([]);
+  const [companySelect, setCompanySelect] = useState<string>("");
+  const [newCompanyName, setNewCompanyName] = useState("");
+  const company =
+    companySelect === NEW_COMPANY_VALUE ? newCompanyName.trim() : companySelect;
+
   const [plant, setPlant] = useState(PLANTS[0]);
   const [ktpFile, setKtpFile] = useState<File | null>(null);
   const [ktpPreview, setKtpPreview] = useState<string | null>(null);
@@ -25,12 +40,42 @@ export default function RegisterPage() {
   const [ocrResult, setOcrResult] = useState<KtpOcrResult | null>(null);
   const [nik, setNik] = useState("");
   const [nama, setNama] = useState("");
+  // --- Fitur 3: alamat dari OCR, bisa dikoreksi ---
+  const [alamat, setAlamat] = useState("");
   const [ban, setBan] = useState<ActiveBan | null>(null);
   const [checking, setChecking] = useState(false);
   const [faceFile, setFaceFile] = useState<File | null>(null);
   const [facePreview, setFacePreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function runSync() {
+    setSyncStatus("loading");
+    setSyncError(null);
+    try {
+      const [metaRes, companiesRes] = await Promise.all([
+        supabase.from("sync_meta").select("updated_at").eq("key", "last_push").maybeSingle(),
+        supabase.from("contractor_companies_cache").select("name").order("name"),
+      ]);
+      if (metaRes.error) throw metaRes.error;
+      if (companiesRes.error) throw companiesRes.error;
+
+      setLastSyncedAt(metaRes.data?.updated_at ?? null);
+      setCompanies((companiesRes.data as CompanyCache[] | null)?.map((c) => c.name) ?? []);
+      setSyncStatus("ok");
+    } catch (e) {
+      console.error(e);
+      setSyncStatus("error");
+      setSyncError(
+        "Gagal menyinkronkan data terbaru (blacklist & daftar PT). Periksa koneksi internet lalu coba lagi."
+      );
+    }
+  }
+
+  useEffect(() => {
+    runSync();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleKtpSelected(file: File) {
     setKtpFile(file);
@@ -43,9 +88,10 @@ export default function RegisterPage() {
       setOcrResult(result);
       setNik(result.nik);
       setNama(result.nama);
+      setAlamat(result.alamat);
     } catch (e) {
       setError(
-        "OCR gagal membaca KTP. Isi NIK dan nama secara manual di bawah."
+        "OCR gagal membaca KTP. Isi NIK, nama, dan alamat secara manual di bawah."
       );
       console.error(e);
     }
@@ -54,6 +100,10 @@ export default function RegisterPage() {
   async function checkBlacklistAndContinue() {
     if (nik.replace(/\D/g, "").length !== 16) {
       setError("NIK harus 16 digit. Periksa kembali hasil pembacaan KTP.");
+      return;
+    }
+    if (!nama.trim()) {
+      setError("Nama tidak boleh kosong. Isi manual kalau OCR gagal membaca.");
       return;
     }
     setError(null);
@@ -105,6 +155,7 @@ export default function RegisterPage() {
         .insert({
           ktp_no: nik,
           name: nama,
+          alamat: alamat || null,
           company_name: company,
           plant_location: plant,
           ktp_photo_url: ktpUrl,
@@ -125,6 +176,14 @@ export default function RegisterPage() {
     }
   }
 
+  function formatSyncTime(iso: string | null): string {
+    if (!iso) return "belum pernah";
+    return new Date(iso).toLocaleString("id-ID", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+  }
+
   return (
     <main className="flex-1 p-5 max-w-sm mx-auto w-full flex flex-col gap-5">
       <h1 className="text-lg font-semibold">Registrasi Man Power</h1>
@@ -137,15 +196,61 @@ export default function RegisterPage() {
 
       {step === "company" && (
         <div className="flex flex-col gap-4">
+          {/* --- Fitur 1: status sinkronisasi --- */}
+          <div
+            className={`rounded-xl border p-3 text-sm flex items-center justify-between gap-3 ${
+              syncStatus === "ok"
+                ? "border-green-900 bg-green-950/40 text-green-300"
+                : syncStatus === "error"
+                ? "border-red-900 bg-red-950/40 text-red-300"
+                : "border-slate-700 bg-slate-900 text-slate-300"
+            }`}
+          >
+            <div>
+              {syncStatus === "loading" && <span>Menyinkronkan data terbaru...</span>}
+              {syncStatus === "ok" && (
+                <span>Data terbaru ✓ ({formatSyncTime(lastSyncedAt)})</span>
+              )}
+              {syncStatus === "error" && <span>{syncError}</span>}
+              {syncStatus === "idle" && <span>Menyiapkan sinkronisasi...</span>}
+            </div>
+            <button
+              onClick={runSync}
+              disabled={syncStatus === "loading"}
+              className="shrink-0 rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium disabled:opacity-50"
+            >
+              {syncStatus === "loading" ? "..." : "Sinkronkan"}
+            </button>
+          </div>
+
+          {/* --- Fitur 2: dropdown PT --- */}
           <label className="text-sm text-slate-300">
             Nama PT (perusahaan kontraktor)
-            <input
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              placeholder="Ketik nama PT baru atau yang sudah terdaftar"
+            <select
+              value={companySelect}
+              onChange={(e) => setCompanySelect(e.target.value)}
               className="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-3"
-            />
+            >
+              <option value="" disabled>
+                Pilih PT...
+              </option>
+              {companies.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+              <option value={NEW_COMPANY_VALUE}>+ PT baru (belum ada di daftar)</option>
+            </select>
           </label>
+          {companySelect === NEW_COMPANY_VALUE && (
+            <input
+              value={newCompanyName}
+              onChange={(e) => setNewCompanyName(e.target.value)}
+              placeholder="Ketik nama PT baru"
+              className="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-3"
+            />
+          )}
+
           <label className="text-sm text-slate-300">
             Lokasi Plant
             <select
@@ -161,11 +266,13 @@ export default function RegisterPage() {
             </select>
           </label>
           <button
-            disabled={!company.trim()}
+            disabled={!company || syncStatus !== "ok"}
             onClick={() => setStep("ktp")}
             className="rounded-xl bg-blue-600 disabled:bg-slate-700 px-6 py-4 font-medium"
           >
-            Lanjut: Scan KTP
+            {syncStatus !== "ok"
+              ? "Menunggu sinkronisasi..."
+              : "Lanjut: Scan KTP"}
           </button>
         </div>
       )}
@@ -216,6 +323,15 @@ export default function RegisterPage() {
                 <input
                   value={nama}
                   onChange={(e) => setNama(e.target.value)}
+                  className="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-3"
+                />
+              </label>
+              <label className="text-sm text-slate-300">
+                Alamat — periksa/koreksi hasil scan
+                <textarea
+                  value={alamat}
+                  onChange={(e) => setAlamat(e.target.value)}
+                  rows={2}
                   className="mt-1 w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-3"
                 />
               </label>

@@ -1,3 +1,23 @@
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div>
+                    <h5 class="mb-1"><i class="fas fa-sync-alt me-2 text-primary"></i>Sinkronisasi Mobile App</h5>
+                    <small class="text-muted">Tarik registrasi/sanksi baru dari HP, lalu kirim update blacklist &amp; daftar PT terbaru ke cloud.</small>
+                </div>
+                <div class="text-end">
+                    <button id="sync-now-btn" class="btn btn-primary" type="button">
+                        <i class="fas fa-sync-alt me-1"></i> Sync Now
+                    </button>
+                    <div id="sync-now-status" class="small mt-1"></div>
+                </div>
+            </div>
+            <pre id="sync-now-log" class="d-none m-0 p-3 bg-dark text-light small" style="max-height:220px; overflow:auto;"></pre>
+        </div>
+    </div>
+</div>
+
 <div class="row">
     <!-- MAN HOURS WITHOUT LTI -->
     <div class="col-md-4">
@@ -175,5 +195,40 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Update every hour (3600000 milliseconds)
     setInterval(updateDashboard, 3600000);
+});
+
+document.addEventListener('DOMContentLoaded', function () {
+    const btn = document.getElementById('sync-now-btn');
+    const status = document.getElementById('sync-now-status');
+    const log = document.getElementById('sync-now-log');
+    if (!btn) return;
+
+    btn.addEventListener('click', function () {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Menyinkronkan...';
+        status.textContent = '';
+        log.classList.add('d-none');
+
+        fetch('sync_now.php', { method: 'POST' })
+            .then((r) => r.json())
+            .then((data) => {
+                status.textContent = data.ok
+                    ? 'Sync berhasil.'
+                    : 'Sync gagal (lihat log di bawah).';
+                status.className = 'small mt-1 ' + (data.ok ? 'text-success' : 'text-danger');
+                if (data.log) {
+                    log.textContent = data.log;
+                    log.classList.remove('d-none');
+                }
+            })
+            .catch((e) => {
+                status.textContent = 'Gagal menghubungi server: ' + e;
+                status.className = 'small mt-1 text-danger';
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Sync Now';
+            });
+    });
 });
 </script>

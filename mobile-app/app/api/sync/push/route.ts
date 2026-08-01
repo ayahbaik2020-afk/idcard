@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
     active_bans?: ActiveBan[];
     contractors?: SyncedContractor[];
     sanction_history?: SanctionHistory[];
+    companies?: string[];
     local_base_url?: string; // e.g. http://192.168.20.17:8081/idcard/public
   };
   try {
@@ -114,6 +115,26 @@ export async function POST(req: NextRequest) {
       const { error } = await admin.from("synced_sanction_history").insert(rows);
       if (error) errors.push(`sanction_history insert: ${error.message}`);
     }
+  }
+
+  // --- contractor_companies_cache: full replace ---
+  if (body.companies) {
+    const { error: delErr } = await admin.from("contractor_companies_cache").delete().neq("name", "");
+    if (delErr) errors.push(`companies delete: ${delErr.message}`);
+    if (body.companies.length > 0) {
+      const rows = body.companies.map((name) => ({ name, synced_at: new Date().toISOString() }));
+      const { error } = await admin.from("contractor_companies_cache").insert(rows);
+      if (error) errors.push(`companies insert: ${error.message}`);
+    }
+  }
+
+  // --- sync_meta: record that a push just completed, so the mobile app
+  // can show "data terakhir sinkron: ..." and gate registration on it ---
+  {
+    const { error } = await admin
+      .from("sync_meta")
+      .upsert({ key: "last_push", updated_at: new Date().toISOString() });
+    if (error) errors.push(`sync_meta: ${error.message}`);
   }
 
   if (errors.length > 0) {
