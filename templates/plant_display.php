@@ -323,6 +323,8 @@
                         let errorContent = '';
                         if (res.message.includes('BANNED')) {
                             errorContent = `<div class="text-center text-danger"><h6>ID CARD BANNED</h6><p class="mb-0" style="font-size:0.8rem;">Tidak boleh masuk.</p></div>`;
+                        } else if (res.message.includes('EXPIRED')) {
+                            errorContent = `<div class="text-center" style="color:#f39c12;"><h6>ID CARD EXPIRED</h6><p class="mb-0" style="font-size:0.8rem;">${res.message}</p></div>`;
                         } else {
                             errorContent = `<div class="text-center text-warning"><h6>Scan Error</h6><p class="mb-0" style="font-size:0.8rem;">${res.message}</p></div>`;
                         }

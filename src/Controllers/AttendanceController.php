@@ -225,7 +225,7 @@ class AttendanceController
 
         // Check if contractor exists and not banned
         $stmt = $this->pdo->prepare("
-            SELECT c.id, c.name, c.status, c.plant_location
+            SELECT c.id, c.name, c.status, c.plant_location, c.expiry_date
             FROM contractors c
             WHERE c.id_card = ?
         ");
@@ -241,6 +241,8 @@ class AttendanceController
             echo json_encode(['success' => false, 'message' => 'ID Card BANNED - Tidak boleh masuk']);
             exit();
         }
+
+        $isExpired = !empty($contractor['expiry_date']) && $contractor['expiry_date'] < date('Y-m-d');
 
         // Optional: Keep server-side validation for security.
         // NOTE: the EDC/VCM plant display sends the combined location
@@ -297,6 +299,11 @@ class AttendanceController
 
                 if (WorkHoursCalculator::minutesHaveElapsed($check_out_time, $now, 5)) {
                     // More than 5 minutes have passed since last check-out, so CHECK-IN
+                    if ($isExpired) {
+                        echo json_encode(['success' => false, 'message' => 'ID Card EXPIRED (masa berlaku habis ' . $contractor['expiry_date'] . ') - Tidak boleh masuk. Hubungi admin untuk perpanjangan.', 'type' => 'expired']);
+                        exit();
+                    }
+
                     $stmt = $this->pdo->prepare("
                         INSERT INTO attendances (contractor_id, plant_location, check_in_time)
                         VALUES (?, ?, NOW())
@@ -313,6 +320,11 @@ class AttendanceController
             }
         } else {
             // No previous record, so this is the first CHECK-IN
+            if ($isExpired) {
+                echo json_encode(['success' => false, 'message' => 'ID Card EXPIRED (masa berlaku habis ' . $contractor['expiry_date'] . ') - Tidak boleh masuk. Hubungi admin untuk perpanjangan.', 'type' => 'expired']);
+                exit();
+            }
+
             $stmt = $this->pdo->prepare("
                 INSERT INTO attendances (contractor_id, plant_location, check_in_time)
                 VALUES (?, ?, NOW())

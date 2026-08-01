@@ -29,6 +29,7 @@
             <option value="Active" <?php echo $status == 'Active' ? 'selected' : ''; ?>>Active</option>
             <option value="Banned" <?php echo $status == 'Banned' ? 'selected' : ''; ?>>Banned</option>
             <option value="Non-Active" <?php echo $status == 'Non-Active' ? 'selected' : ''; ?>>Non-Active</option>
+            <option value="Expired" <?php echo $status == 'Expired' ? 'selected' : ''; ?>>⚠ Expired</option>
         </select>
     </div>
     <div class="col-md-2">
@@ -111,7 +112,12 @@
                         </span>
                     </td>
                     <td><?php echo htmlspecialchars($contractor['registration_date']); ?></td>
-                    <td><?php echo htmlspecialchars($contractor['expiry_date']); ?></td>
+                    <td>
+                        <?php echo htmlspecialchars($contractor['expiry_date']); ?>
+                        <?php if (!empty($contractor['expiry_date']) && $contractor['expiry_date'] < date('Y-m-d')): ?>
+                            <span class="badge bg-warning text-dark ms-1">Expired</span>
+                        <?php endif; ?>
+                    </td>
                     <td>
                         <a href="index.php?page=contractors&action=edit&id=<?php echo $contractor['id']; ?>" class="btn btn-sm btn-warning">Edit</a>
                         <a href="index.php?page=contractors&action=delete&id=<?php echo $contractor['id']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus?')">Hapus</a>

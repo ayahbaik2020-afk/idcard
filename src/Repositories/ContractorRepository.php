@@ -84,8 +84,16 @@ class ContractorRepository
             $params[] = "%{$filters['search']}%";
         }
         if (!empty($filters['status'])) {
-            $query .= " AND c.status = ?";
-            $params[] = $filters['status'];
+            if ($filters['status'] === 'Expired') {
+                // Virtual status: not a real value in the `status` enum,
+                // computed from expiry_date instead so admins can find
+                // who needs renewal (see AttendanceController::scan()
+                // for where this same expiry check blocks check-in).
+                $query .= " AND c.expiry_date IS NOT NULL AND c.expiry_date < CURDATE()";
+            } else {
+                $query .= " AND c.status = ?";
+                $params[] = $filters['status'];
+            }
         }
         if (!empty($filters['plant'])) {
             $query .= " AND c.plant_location = ?";

@@ -52,6 +52,17 @@
             </div>
         </div>
     </div>
+    <!-- Man Power Expired -->
+    <div class="col-md-4">
+        <div class="card stat-card bg-gradient-warning mb-3">
+            <i class="fas fa-id-card-alt card-icon-bg"></i>
+            <div class="card-body">
+                <h5 class="card-title">MAN POWER EXPIRED</h5>
+                <p class="card-text fs-2" id="total-expired"><?php echo str_pad($total_expired, 3, '0', STR_PAD_LEFT); ?></p>
+                <a href="index.php?page=contractors&status=Expired">segera perpanjang <i class="bi bi-arrow-right-circle"></i></a>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="row">

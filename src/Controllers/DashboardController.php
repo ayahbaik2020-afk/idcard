@@ -28,6 +28,10 @@ class DashboardController
         $stmt = $this->pdo->query("SELECT COUNT(id) as total_violations FROM violations");
         $total_violations = $stmt->fetchColumn() ?? 0;
 
+        // 3b. Man power expired (masa berlaku KTP/ID card habis, belum diperpanjang)
+        $expired_stmt = $this->pdo->query("SELECT COUNT(*) FROM contractors WHERE expiry_date IS NOT NULL AND expiry_date < CURDATE()");
+        $total_expired = $expired_stmt->fetchColumn() ?? 0;
+
         // 4. Pie Chart: Contractor Distribution per Plant
         $plant_distribution_stmt = $this->pdo->query(
             "SELECT plant_location, COUNT(*) as count"
@@ -63,6 +67,7 @@ class DashboardController
             'settings',
             'total_contractors_in_plant',
             'total_violations',
+            'total_expired',
             'plant_distribution',
             'company_count',
             'banned_contractors'
