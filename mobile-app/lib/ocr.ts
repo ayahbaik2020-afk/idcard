@@ -1,4 +1,4 @@
-import { createWorker } from "tesseract.js";
+import { createWorker, PSM } from "tesseract.js";
 
 export type KtpOcrResult = {
   nik: string;
@@ -169,13 +169,29 @@ export async function scanKtp(
   imageSource: File | Blob | string,
   onProgress?: (pct: number) => void
 ): Promise<KtpOcrResult> {
-  const worker = await createWorker("ind", 1, {
+  // Language model: "eng" is used instead of "ind" here even though the
+  // card is Indonesian. Tested directly against real KTP photos: the
+  // "ind" traineddata reads the field VALUES (name/address/etc, printed
+  // over the hologram/guilloche background) as near-random noise, while
+  // "eng" reads the exact same image close to perfectly (confirmed via
+  // side-by-side testing - "ind" mangled "MAMAN" into "Sa ES" and a
+  // clean address into garbage, "eng" read both correctly). The card
+  // text is plain Latin characters/digits with no Indonesian-specific
+  // diacritics, so "eng"'s more mature/accurate LSTM model reads it
+  // better than the lower-quality "ind" model despite the language
+  // mismatch.
+  const worker = await createWorker("eng", 1, {
     logger: (m) => {
       if (m.status === "recognizing text" && onProgress) {
         onProgress(Math.round(m.progress * 100));
       }
     },
   });
+  // SINGLE_BLOCK: treat the card as one uniform block of text rather than
+  // trying to auto-detect a page layout (the default AUTO mode) - this
+  // measurably improved accuracy in testing on the dense, multi-field KTP
+  // layout.
+  await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_BLOCK });
 
   try {
     const preprocessed =
