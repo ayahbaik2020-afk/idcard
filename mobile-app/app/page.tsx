@@ -1,4 +1,5 @@
 import Link from "next/link";
+import SyncStatusBar from "@/components/SyncStatusBar";
 
 export default function Home() {
   return (
@@ -6,6 +7,7 @@ export default function Home() {
       <h1 className="text-xl font-semibold text-center mb-2">
         IDCard Mobile
       </h1>
+      <SyncStatusBar />
       <Link
         href="/register"
         className="w-full max-w-sm rounded-xl bg-blue-600 active:bg-blue-700 px-6 py-4 text-center font-medium"

@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase, type ActiveBan, type CompanyCache } from "@/lib/supabase";
+import { useState } from "react";
+import { supabase, type ActiveBan } from "@/lib/supabase";
 import { scanKtp, type KtpOcrResult } from "@/lib/ocr";
+import { useSyncStatus } from "@/lib/useSyncStatus";
 
 const PLANTS = [
   "CA PLANT",
@@ -16,18 +17,15 @@ const PLANTS = [
 const NEW_COMPANY_VALUE = "__new__";
 
 type Step = "company" | "ktp" | "blacklist" | "photo" | "done";
-type SyncStatus = "idle" | "loading" | "ok" | "error";
 
 export default function RegisterPage() {
   const [step, setStep] = useState<Step>("company");
 
   // --- Fitur 1: gate sinkronisasi data sebelum boleh lanjut ---
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
-  const [syncError, setSyncError] = useState<string | null>(null);
+  // Shared with the homepage's SyncStatusBar - see lib/useSyncStatus.ts.
+  const { status: syncStatus, lastSyncedAt, companies, error: syncError, refresh: runSync } = useSyncStatus();
 
   // --- Fitur 2: dropdown PT ---
-  const [companies, setCompanies] = useState<string[]>([]);
   const [companySelect, setCompanySelect] = useState<string>("");
   const [newCompanyName, setNewCompanyName] = useState("");
   const company =
@@ -48,34 +46,6 @@ export default function RegisterPage() {
   const [facePreview, setFacePreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  async function runSync() {
-    setSyncStatus("loading");
-    setSyncError(null);
-    try {
-      const [metaRes, companiesRes] = await Promise.all([
-        supabase.from("sync_meta").select("updated_at").eq("key", "last_push").maybeSingle(),
-        supabase.from("contractor_companies_cache").select("name").order("name"),
-      ]);
-      if (metaRes.error) throw metaRes.error;
-      if (companiesRes.error) throw companiesRes.error;
-
-      setLastSyncedAt(metaRes.data?.updated_at ?? null);
-      setCompanies((companiesRes.data as CompanyCache[] | null)?.map((c) => c.name) ?? []);
-      setSyncStatus("ok");
-    } catch (e) {
-      console.error(e);
-      setSyncStatus("error");
-      setSyncError(
-        "Gagal menyinkronkan data terbaru (blacklist & daftar PT). Periksa koneksi internet lalu coba lagi."
-      );
-    }
-  }
-
-  useEffect(() => {
-    runSync();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   async function handleKtpSelected(file: File) {
     setKtpFile(file);

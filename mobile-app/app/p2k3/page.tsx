@@ -38,11 +38,17 @@ export default function P2K3Page() {
   const [scanAttempt, setScanAttempt] = useState(0);
   const scannerDivId = "p2k3-qr-reader";
   const html5QrRef = useRef<import("html5-qrcode").Html5Qrcode | null>(null);
+  // Guards against the camera firing the success callback more than once
+  // for the same code (fps:10 can decode the same frame a couple of times
+  // before React has a chance to swap screens), which previously caused
+  // loadProfile() to be kicked off twice and the scanner torn down twice.
+  const handledRef = useRef(false);
 
   useEffect(() => {
     if (screen !== "scan") return;
 
     let cancelled = false;
+    handledRef.current = false;
     setScanError(null);
 
     import("html5-qrcode").then(({ Html5Qrcode }) => {
@@ -55,7 +61,15 @@ export default function P2K3Page() {
           { facingMode: "environment" },
           { fps: 10, qrbox: { width: 240, height: 240 } },
           (decodedText) => {
-            scanner.stop().catch(() => {});
+            if (handledRef.current) return;
+            handledRef.current = true;
+            // Deliberately NOT calling scanner.stop()/clear() here. The
+            // cleanup function below (triggered once `screen` changes away
+            // from "scan") is the single place that tears the scanner
+            // down - stopping it twice throws ("Cannot stop, scanner is
+            // not running or paused"), and calling clear() after React
+            // has already removed the container div also throws. Doing
+            // it in exactly one place, guarded, avoids both.
             loadProfile(decodedText.trim());
           },
           () => {
@@ -63,6 +77,7 @@ export default function P2K3Page() {
           }
         )
         .catch((e) => {
+          if (cancelled) return;
           console.error(e);
           setScanError(
             "Tidak bisa mengakses kamera. Pastikan izin kamera diaktifkan."
@@ -77,9 +92,18 @@ export default function P2K3Page() {
       if (!scanner) return;
       scanner
         .stop()
-        .catch(() => {})
+        .catch(() => {
+          // Already stopped/never started - fine, we're tearing down anyway.
+        })
         .finally(() => {
-          scanner.clear();
+          try {
+            scanner.clear();
+          } catch {
+            // clear() is synchronous and throws if the container <div>
+            // was already removed from the DOM (e.g. React has already
+            // re-rendered to the "profile" screen by the time this runs
+            // after a successful scan). Nothing to clean up in that case.
+          }
         });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
