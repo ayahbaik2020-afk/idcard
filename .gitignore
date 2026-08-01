@@ -35,3 +35,6 @@ Thumbs.db
 .DS_Store
 .vscode/
 .idea/
+
+# PHPUnit cache (see phpunit.xml / tests/)
+/.phpunit.cache/

@@ -89,14 +89,14 @@
         .float-col.right { right: 18px; }
 
         .glass-card {
-            background: rgba(15, 20, 25, 0.45);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.15);
+            background: rgba(255, 255, 255, 0.10);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255,255,255,0.22);
             border-radius: 16px;
             padding: 14px 16px;
             color: #fff;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.22);
             flex-shrink: 0;
         }
         .float-col.left .glass-card { border-left: 4px solid var(--card-color, var(--accent-color)); }
