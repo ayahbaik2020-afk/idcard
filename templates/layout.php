@@ -32,6 +32,9 @@
                 <a class="nav-link <?php echo ($currentPage == 'plant_contractors') ? 'active' : ''; ?>" href="index.php?page=plant_contractors"><i class="bi bi-building"></i> Kontraktor di Plant</a>
             </li>
             <li class="nav-item">
+                <a class="nav-link <?php echo ($currentPage == 'expired_contractors') ? 'active' : ''; ?>" href="index.php?page=expired_contractors"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Man Power Expired</a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link <?php echo ($currentPage == 'sanctions') ? 'active' : ''; ?>" href="index.php?page=sanctions"><i class="bi bi-exclamation-triangle-fill"></i> Sanksi</a>
             </li>
             <li class="nav-item">

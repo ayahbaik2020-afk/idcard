@@ -70,6 +70,32 @@ class ContractorController
         $this->renderView('contractors/in_plant.php', $data);
     }
 
+    /**
+     * Dedicated menu for man power whose expiry_date has passed - a
+     * separate page (not just a filter on the main list) so it's easy to
+     * bookmark/link to and check at a glance. See AttendanceController::
+     * scan() for where this same expiry check blocks check-in at the gate.
+     */
+    public function expired()
+    {
+        $filters = [
+            'search' => $_GET['search'] ?? '',
+            'plant' => $_GET['plant'] ?? '',
+            'company_id' => $_GET['company_id'] ?? '',
+            'status' => 'Expired',
+        ];
+        $pg = max(1, (int) ($_GET['pg'] ?? 1));
+
+        $result = $this->service->getList($filters, $pg);
+        $contractors = $result['data'];
+        $pagination = $result;
+        $companies = $this->companyRepo->getAll();
+
+        $data = array_merge(['contractors' => $contractors, 'companies' => $companies, 'pagination' => $pagination], $filters);
+
+        $this->renderView('contractors/expired.php', $data);
+    }
+
     public function create()
     {
         $companies = $this->companyRepo->getAll();

@@ -105,6 +105,11 @@ switch ($page) {
         $controller->inPlant();
         break;
 
+    case 'expired_contractors':
+        $controller = new App\Controllers\ContractorController($container['pdo']($container));
+        $controller->expired();
+        break;
+
     case 'sanctions':
         $controller = new App\Controllers\SanctionController($container['pdo']($container));
         switch ($action) {
