@@ -4,6 +4,7 @@ import { useState } from "react";
 import { supabase, type ActiveBan } from "@/lib/supabase";
 import { scanKtp, type KtpOcrResult } from "@/lib/ocr";
 import { useSyncStatus } from "@/lib/useSyncStatus";
+import CameraCapture from "@/components/CameraCapture";
 
 const PLANTS = [
   "CA PLANT",
@@ -249,26 +250,39 @@ export default function RegisterPage() {
 
       {step === "ktp" && (
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-slate-400">
-            Ambil foto KTP dengan pencahayaan cukup, rata, tidak silau.
-          </p>
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleKtpSelected(f);
-            }}
-            className="text-sm"
-          />
+          {!ktpFile && (
+            <>
+              <p className="text-sm text-slate-400">
+                Posisikan KTP di dalam kotak, pencahayaan cukup &amp; rata,
+                tidak silau, lalu tekan Ambil Foto.
+              </p>
+              <CameraCapture
+                aspect="card"
+                frameLabel="Posisikan KTP rata di dalam kotak"
+                onCapture={handleKtpSelected}
+              />
+            </>
+          )}
           {ktpPreview && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={ktpPreview}
-              alt="Preview KTP"
-              className="rounded-lg border border-slate-700"
-            />
+            <div className="flex flex-col gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={ktpPreview}
+                alt="Preview KTP"
+                className="rounded-lg border border-slate-700"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setKtpFile(null);
+                  setKtpPreview(null);
+                  setOcrResult(null);
+                }}
+                className="self-start text-xs text-slate-400 underline"
+              >
+                Ambil ulang foto KTP
+              </button>
+            </div>
           )}
           {ktpFile && !ocrResult && (
             <p className="text-sm text-slate-400">
@@ -365,26 +379,35 @@ export default function RegisterPage() {
           <p className="text-sm text-slate-400">
             NIK bersih dari sanksi aktif. Lanjut ambil foto wajah/orangnya.
           </p>
-          <input
-            type="file"
-            accept="image/*"
-            capture="user"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) {
+          {!faceFile && (
+            <CameraCapture
+              aspect="portrait"
+              frameLabel="Posisikan wajah di tengah kotak"
+              onCapture={(f) => {
                 setFaceFile(f);
                 setFacePreview(URL.createObjectURL(f));
-              }
-            }}
-            className="text-sm"
-          />
-          {facePreview && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={facePreview}
-              alt="Preview foto"
-              className="rounded-lg border border-slate-700"
+              }}
             />
+          )}
+          {facePreview && (
+            <div className="flex flex-col gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={facePreview}
+                alt="Preview foto"
+                className="rounded-lg border border-slate-700"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setFaceFile(null);
+                  setFacePreview(null);
+                }}
+                className="self-start text-xs text-slate-400 underline"
+              >
+                Ambil ulang foto
+              </button>
+            </div>
           )}
           <button
             disabled={!faceFile || submitting}
