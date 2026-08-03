@@ -17,13 +17,15 @@ const PLANTS = [
 
 const NEW_COMPANY_VALUE = "__new__";
 
-type Step = "company" | "ktp" | "duplicate" | "blacklist" | "photo" | "done";
+type Step = "company" | "ktp" | "duplicate" | "reactivate" | "blacklist" | "photo" | "done";
 
 type DuplicateInfo = {
   source: "synced" | "pending";
   name?: string;
   id_card?: string;
   submitted_at?: string;
+  expired?: boolean;
+  expiry_date?: string | null;
 };
 
 /** Per-field read-quality status shown to the user right after OCR, so a
@@ -167,24 +169,50 @@ export default function RegisterPage() {
       if (!dupRes.ok) throw new Error(dupData.error || "Gagal cek duplikat NIK");
 
       if (dupData.duplicate) {
+        const expired =
+          dupData.source === "synced" && dupData.expired === true;
         setDup({
           source: dupData.source,
           name: dupData.name,
           id_card: dupData.id_card,
           submitted_at: dupData.submitted_at,
+          expired,
+          expiry_date: dupData.expiry_date ?? null,
         });
-        setStep("duplicate");
+        // NIK yang kartunya sudah expired boleh di-reaktivasi (ID Card
+        // baru). NIK yang masih aktif langsung diblokir.
+        setStep(expired ? "reactivate" : "duplicate");
         return;
       }
 
-      const { data, error: qErr } = await supabase
-        .from("synced_active_bans")
-        .select("*")
-        .eq("ktp_no", cleanNik)
-        .maybeSingle();
-      if (qErr) throw qErr;
-      setBan((data as ActiveBan) ?? null);
-      setStep(data ? "blacklist" : "photo");
+      await checkBlacklistAndContinue(cleanNik);
+    } catch (e) {
+      console.error(e);
+      setError(
+        "Gagal memeriksa status NIK. Periksa koneksi internet dan coba lagi."
+      );
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  async function checkBlacklistAndContinue(cleanNik: string) {
+    const { data, error: qErr } = await supabase
+      .from("synced_active_bans")
+      .select("*")
+      .eq("ktp_no", cleanNik)
+      .maybeSingle();
+    if (qErr) throw qErr;
+    setBan((data as ActiveBan) ?? null);
+    setStep(data ? "blacklist" : "photo");
+  }
+
+  async function proceedWithReactivation() {
+    const cleanNik = nik.replace(/\D/g, "");
+    setError(null);
+    setChecking(true);
+    try {
+      await checkBlacklistAndContinue(cleanNik);
     } catch (e) {
       console.error(e);
       setError(
@@ -515,6 +543,61 @@ export default function RegisterPage() {
               className="flex-1 rounded-xl bg-slate-800 px-6 py-4 font-medium"
             >
               Registrasi Orang Lain
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === "reactivate" && dup && (
+        <div className="flex flex-col gap-4">
+          <div className="rounded-xl border border-amber-800 bg-amber-950/40 p-4">
+            <p className="font-semibold text-amber-300 mb-2">
+              ID Card sudah tidak berlaku
+            </p>
+            <dl className="text-sm space-y-1 text-slate-200">
+              {dup.name && (
+                <div>
+                  <dt className="inline text-slate-400">Nama tercatat: </dt>
+                  <dd className="inline">{dup.name}</dd>
+                </div>
+              )}
+              {dup.id_card && (
+                <div>
+                  <dt className="inline text-slate-400">ID Card lama: </dt>
+                  <dd className="inline">{dup.id_card}</dd>
+                </div>
+              )}
+              {dup.expiry_date && (
+                <div>
+                  <dt className="inline text-slate-400">Berakhir: </dt>
+                  <dd className="inline">{dup.expiry_date}</dd>
+                </div>
+              )}
+            </dl>
+          </div>
+          <p className="text-sm text-slate-400">
+            NIK ini sudah terdaftar, tapi ID Card-nya sudah melewati masa
+            berlaku. Re Aktivasi akan menerbitkan ID Card baru dengan nomor
+            baru. Masa berlaku kartu baru diatur admin setelah data
+            tersinkron ke sistem kantor.
+          </p>
+          <p className="text-sm font-medium text-slate-300">
+            Apakah anda akan melakukan Re Aktivasi ID dengan yang baru?
+          </p>
+          <div className="flex gap-2">
+            <button
+              disabled={checking}
+              onClick={() => setStep("ktp")}
+              className="flex-1 rounded-xl bg-slate-800 px-6 py-4 font-medium"
+            >
+              Koreksi NIK
+            </button>
+            <button
+              disabled={checking}
+              onClick={proceedWithReactivation}
+              className="flex-1 rounded-xl bg-blue-600 px-6 py-4 font-medium"
+            >
+              {checking ? "Memeriksa..." : "Re Aktivasi ID"}
             </button>
           </div>
         </div>

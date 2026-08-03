@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   const [syncedRes, pendingRes] = await Promise.all([
     admin
       .from("synced_contractors")
-      .select("id_card, name")
+      .select("id_card, name, expiry_date")
       .eq("ktp_no", ktpNo)
       .maybeSingle(),
     admin
@@ -51,11 +51,17 @@ export async function POST(req: NextRequest) {
   }
 
   if (syncedRes.data) {
+    // Kalender hari ini di zona WIB (UTC+7); expiry_date hanya tanggal.
+    const today = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const expiryDate = syncedRes.data.expiry_date ?? null;
+    const expired = expiryDate !== null && expiryDate < today;
     return NextResponse.json({
       duplicate: true,
       source: "synced",
       id_card: syncedRes.data.id_card,
       name: syncedRes.data.name,
+      expiry_date: expiryDate,
+      expired,
     });
   }
 

@@ -147,7 +147,11 @@ foreach ($pendingContractors as $row) {
         ], $tmpPhoto);
 
         if ($result['status'] === 'created') {
-            sync_log("  + Kontraktor baru: {$row['name']} ({$row['ktp_no']}) -> id_card {$result['id_card']}");
+            if (!empty($result['reactivated'])) {
+                sync_log("  + Re-aktivasi ID: {$row['name']} ({$row['ktp_no']}) -> id_card baru {$result['id_card']}");
+            } else {
+                sync_log("  + Kontraktor baru: {$row['name']} ({$row['ktp_no']}) -> id_card {$result['id_card']}");
+            }
             $ackContractors[] = ['id' => $row['id'], 'status' => 'synced'];
         } else {
             sync_log("  ! Dilewati ({$row['name']} / {$row['ktp_no']}): {$result['message']}");

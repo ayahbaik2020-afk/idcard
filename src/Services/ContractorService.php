@@ -313,14 +313,24 @@ class ContractorService
      * downloaded to disk (not a $_FILES upload), so it's copied rather
      * than moved via move_uploaded_file().
      *
-     * Returns ['status' => 'created', 'id' => ..., 'id_card' => ...]
-     * or ['status' => 'duplicate', 'message' => ...] if the KTP number
-     * already exists locally (never overwrites an existing record).
+     * Returns ['status' => 'created', 'id' => ..., 'id_card' => ...,
+     * 'reactivated' => bool] or ['status' => 'duplicate', 'message' => ...]
+     * if the KTP number already exists locally as an ACTIVE contractor.
+     * An existing contractor whose ID Card has already expired is treated
+     * as a re-activation: a brand new ID Card + QR code is issued.
      */
     public function createFromMobileSync(array $data, ?string $localFacePhotoPath): array
     {
-        if (!empty($data['ktp_no']) && $this->contractorRepo->findByKtpNo($data['ktp_no'])) {
-            return ['status' => 'duplicate', 'message' => 'KTP sudah terdaftar di sistem lokal'];
+        if (!empty($data['ktp_no'])) {
+            $existingId = $this->contractorRepo->findByKtpNo($data['ktp_no']);
+            if ($existingId) {
+                $existing = $this->contractorRepo->findById($existingId);
+                $isExpired = $existing && !empty($existing['expiry_date']) && $existing['expiry_date'] < date('Y-m-d');
+                if (!$isExpired) {
+                    return ['status' => 'duplicate', 'message' => 'KTP sudah terdaftar di sistem lokal'];
+                }
+                return $this->reactivateFromMobile($existing, $data, $localFacePhotoPath);
+            }
         }
 
         if (empty(trim($data['name'] ?? ''))) {
@@ -343,6 +353,49 @@ class ContractorService
         $this->contractorRepo->logActivity('create', 'contractors', $id, "Created contractor from mobile sync: {$data['name']}");
 
         return ['status' => 'created', 'id' => $id, 'id_card' => $data['id_card']];
+    }
+
+    /**
+     * Re-activates an existing (expired) contractor from the mobile app:
+     * issues a brand new ID Card number + QR code, deletes the old QR file
+     * (physical card replaced), updates profile/photo, and resets
+     * expiry_date to NULL so the card is active until the admin sets a new
+     * date in the dashboard after sync.
+     */
+    private function reactivateFromMobile(array $existing, array $data, ?string $localFacePhotoPath): array
+    {
+        $data['company_id'] = $this->resolveCompanyId('new_company', $data['company_name'] ?? '');
+
+        $year_prefix = date('y');
+        $max_id = $this->contractorRepo->getMaxIdByYearPrefix($year_prefix);
+        $newIdCard = IdCardNumberFormatter::format($year_prefix, $max_id);
+
+        $photo = $localFacePhotoPath
+            ? $this->storeLocalImageCopy($localFacePhotoPath, $data['ktp_no'])
+            : ($existing['photo'] ?? null);
+        $newQrCode = $this->generateQrCode($newIdCard);
+
+        if (!empty($existing['qr_code'])) {
+            $oldQrPath = self::UPLOAD_ROOT . 'qrcodes/' . $existing['qr_code'];
+            if (is_file($oldQrPath)) {
+                unlink($oldQrPath);
+            }
+        }
+
+        $this->contractorRepo->renewFromMobile($existing['id'], [
+            'name' => $data['name'],
+            'ktp_no' => $data['ktp_no'],
+            'alamat' => $data['alamat'] ?? null,
+            'company_id' => $data['company_id'],
+            'plant_location' => $data['plant_location'] ?? ($existing['plant_location'] ?? ''),
+            'photo' => $photo,
+            'id_card' => $newIdCard,
+            'qr_code' => $newQrCode,
+            'mobile_sync_id' => $data['mobile_sync_id'],
+        ]);
+        $this->contractorRepo->logActivity('update', 'contractors', $existing['id'], "Re-aktivasi via mobile sync: ID Card {$existing['id_card']} -> {$newIdCard}");
+
+        return ['status' => 'created', 'id' => $existing['id'], 'id_card' => $newIdCard, 'reactivated' => true];
     }
 
     /**

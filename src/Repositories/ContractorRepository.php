@@ -264,6 +264,24 @@ class ContractorRepository
     }
 
     /**
+     * Re-activates an existing contractor from the mobile app: issues a
+     * brand new id_card + qr_code (the old physical card is replaced),
+     * updates profile/photo, and records which staging_contractors row it
+     * came from. expiry_date is deliberately reset to NULL so the card is
+     * treated as active until the admin sets a new date - same behaviour
+     * as a fresh mobile registration.
+     */
+    public function renewFromMobile($id, $data)
+    {
+        $stmt = $this->pdo->prepare("UPDATE contractors SET name = ?, ktp_no = ?, alamat = ?, company_id = ?, plant_location = ?, registration_date = ?, status = 'Active', expiry_date = NULL, id_card = ?, photo = ?, qr_code = ?, mobile_sync_id = ?, synced_at = NOW() WHERE id = ?");
+        $stmt->execute([
+            $data['name'], $data['ktp_no'], $data['alamat'], $data['company_id'],
+            $data['plant_location'], date('Y-m-d'), $data['id_card'],
+            $data['photo'], $data['qr_code'], $data['mobile_sync_id'], $id
+        ]);
+    }
+
+    /**
      * Same as insertSanction() but tags the row as coming from the P2K3
      * mobile app.
      */
@@ -308,7 +326,7 @@ class ContractorRepository
     public function getContractorsSnapshot()
     {
         $stmt = $this->pdo->query(
-            "SELECT c.id_card, c.ktp_no, c.name, cc.name AS company_name, c.plant_location, c.status, c.photo
+            "SELECT c.id_card, c.ktp_no, c.name, cc.name AS company_name, c.plant_location, c.status, c.photo, c.expiry_date
              FROM contractors c
              JOIN contractor_companies cc ON c.company_id = cc.id
              WHERE c.id_card IS NOT NULL AND c.id_card != ''"

@@ -19,6 +19,7 @@ type SyncedContractor = {
   plant_location: string | null;
   status: string | null;
   photo: string | null; // filename only, PHP side sends this; we build a URL
+  expiry_date: string | null; // "YYYY-MM-DD", NULL = masih berlaku / belum di-set admin
 };
 
 type SanctionHistory = {
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
         company_name: c.company_name,
         plant_location: c.plant_location,
         status: c.status,
+        expiry_date: c.expiry_date ?? null,
         photo_url: c.photo && baseUrl ? `${baseUrl}/uploads/photos/${c.photo}` : null,
         updated_at: new Date().toISOString(),
       }));

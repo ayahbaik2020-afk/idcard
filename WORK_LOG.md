@@ -423,6 +423,34 @@
   `source:"pending"`. Data test sudah dibersihkan.
 - Commit `b61ea04`, sudah di-push.
 
+### 2026-08-03 (lanjutan) — Re Aktivasi ID expired di registrasi mobile
+- Lanjutan proteksi NIK duplikat. Sekarang NIK yang sudah terdaftar
+  dibedakan: **masih aktif → tetap diblokir** "NIK ini sudah
+  terdaftar"; **kartunya sudah expired → ditawari "Re Aktivasi ID"**
+  yang menerbitkan ID Card + QR baru.
+- `synced_contractors` kini membawa `expiry_date` (dari
+  `getContractorsSnapshot()` di PHP → push snapshot → kolom baru di
+  Supabase; migration `2026_08_03_add_contractor_expiry.sql`).
+- `app/api/register/check-ktp` me-return `expired` + `expiry_date`
+  (dihitung terhadap tanggal WIB UTC+7).
+- `register/page.tsx`: step baru `reactivate` — kalau `source:"synced"`
+  & expired, tampilkan nama/ID Card lama/berakhir + tombol "Re
+  Aktivasi ID"; tombol itu tetap menjalankan cek blacklist dulu
+  sebelum lanjut ke foto/submit. Masih aktif atau pending → step
+  `duplicate` seperti sebelumnya.
+- `ContractorService::createFromMobileSync()`: NIK yang sudah ada tapi
+  expired dianggap re-aktivasi → `reactivateFromMobile()`: nomor ID
+  Card + QR baru (QR lama dihapus), foto wajah baru, `expiry_date`
+  di-reset NULL (berlaku sampai admin set tanggal baru di dashboard
+  setelah sync), `mobile_sync_id` di-update ke staging row baru.
+- `ContractorRepository::renewFromMobile()`: update kontraktor existing
+  dengan id_card/qr/photo/mobile_sync_id baru.
+- `scripts/sync_from_cloud.php`: log "Re-aktivasi ID" untuk hasil
+  `reactivated`.
+- Verifikasi: `php -l` bersih, `tsc --noEmit` & `next build --webpack`
+  sukses, eslint file yang diubah bersih (error lint yang ada di
+  `lib/useSyncStatus.ts` memang pra-existing).
+
 ### 2026-08-01 — Man power expired masih bisa aktif masuk plant (was #1)
 - Root cause: `AttendanceController::scan()` cuma cek `status == 'Banned'`,
   tidak pernah cek `expiry_date` sama sekali — kontraktor expired tapi

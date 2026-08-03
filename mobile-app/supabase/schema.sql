@@ -60,6 +60,7 @@ create table if not exists synced_contractors (
   plant_location text,
   status text,
   photo_url text,
+  expiry_date date,
   updated_at timestamptz not null default now()
 );
 create index if not exists idx_synced_contractors_ktp on synced_contractors(ktp_no);
