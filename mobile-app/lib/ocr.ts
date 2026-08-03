@@ -113,8 +113,60 @@ function extractNik(text: string, lines: string[]): string {
   return "";
 }
 
-const NAMA_LABEL = /\bNAMA\b/i;
-const ALAMAT_LABEL = /\bALAMAT\b/i;
+/** Plain Levenshtein edit distance (insert/delete/substitute), O(n*m)
+ * with a single-row rolling array. Small strings only (label words),
+ * so no need for anything fancier. */
+function levenshtein(a: string, b: string): number {
+  const n = b.length;
+  const dp = new Array(n + 1);
+  for (let j = 0; j <= n; j++) dp[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const temp = dp[j];
+      dp[j] =
+        a[i - 1] === b[j - 1]
+          ? prev
+          : 1 + Math.min(prev, dp[j], dp[j - 1]);
+      prev = temp;
+    }
+  }
+  return dp[n];
+}
+
+/** Finds a label word in `line` within `maxDistance` OCR-typo edits of
+ * `target` (case-insensitive) - e.g. "ALAMAT" also matches "Alama" (one
+ * character dropped) or "Alarnat" (one substituted). A strict exact-word
+ * regex silently drops the ENTIRE field when the label itself is
+ * misread - confirmed in practice against a real device scan: "ALAMAT"
+ * came back as "Alama", and because nothing in the raw text matched
+ * /\bALAMAT\b/, the address that was sitting right there in the same
+ * line ("PERUM GRAND SUTERA CILEGON") was silently discarded along with
+ * every continuation line after it. Distance budget is intentionally
+ * tight (scales with word length via the caller) so it only forgives
+ * genuine near-misses, not unrelated short words. */
+function findFuzzyLabel(
+  line: string,
+  target: string,
+  maxDistance: number
+): RegExpMatchArray | null {
+  const upperTarget = target.toUpperCase();
+  for (const m of line.matchAll(/[A-Za-z]+/g)) {
+    const word = m[0].toUpperCase();
+    if (Math.abs(word.length - upperTarget.length) > maxDistance) continue;
+    if (levenshtein(word, upperTarget) <= maxDistance) return m;
+  }
+  return null;
+}
+
+function stripFuzzyLabel(line: string, match: RegExpMatchArray): string {
+  const start = match.index ?? 0;
+  const end = start + match[0].length;
+  return (line.slice(0, start) + line.slice(end))
+    .replace(/^[\s:.\-|]+/, "")
+    .trim();
+}
 
 /** Everything else printed on a KTP (Tempat/Tgl Lahir, Jenis Kelamin,
  * RT/RW, Kel/Desa, Kecamatan, Agama, Status Perkawinan, Pekerjaan,
@@ -127,10 +179,6 @@ const ALAMAT_LABEL = /\bALAMAT\b/i;
  * card. */
 const OTHER_LABEL =
   /TEMPAT\s*\/?\s*TG?L\.?\s*LAHIR|JENIS\s*KELAMIN|\bRT\s*\/?\s*RW\b|KEL\s*\/?\s*DESA|KECAMATAN|\bAGAMA\b|STATUS\s*PERKAWINAN|PEKERJAAN|KEWARGANEGARAAN|BERLAKU/i;
-
-function stripLabel(line: string, label: RegExp): string {
-  return line.replace(label, "").replace(/^[\s:.\-|]+/, "").trim();
-}
 
 /** OCR of the card's hologram/guilloche background texture frequently
  * shows up as stray symbol noise glued onto real text (seen in practice:
@@ -165,14 +213,16 @@ function extractNamaAlamat(lines: string[]): { nama: string; alamat: string } {
     const line = raw.trim();
     if (!line) continue;
 
-    if (NAMA_LABEL.test(line)) {
+    const namaMatch = findFuzzyLabel(line, "NAMA", 1);
+    if (namaMatch) {
       collectingAlamat = false;
-      nama = stripLabel(line, NAMA_LABEL);
+      nama = stripFuzzyLabel(line, namaMatch);
       awaitingNama = nama === "";
       continue;
     }
-    if (ALAMAT_LABEL.test(line)) {
-      alamat = stripLabel(line, ALAMAT_LABEL);
+    const alamatMatch = findFuzzyLabel(line, "ALAMAT", 1);
+    if (alamatMatch) {
+      alamat = stripFuzzyLabel(line, alamatMatch);
       collectingAlamat = true;
       awaitingNama = false;
       continue;

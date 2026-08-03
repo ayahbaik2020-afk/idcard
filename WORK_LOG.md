@@ -18,21 +18,20 @@
 > asumsi awal dari diskusi 2026-08-01 — sesuaikan kalau ada
 > pertimbangan lain dari lapangan.
 
-1. **[Akurasi OCR] Perlu tes ulang di device fisik setelah fix CLAHE**
-   (commit `0895966`, lihat entri Selesai terkait 2026-08-04 lanjutan 4)
-   — user kirim screenshot hasil tes fisik nyata: NIK kosong total,
-   Nama salah baca jadi "ARAN —" (asli "MAMAN"), Alamat kosong total.
-   Root cause ditemukan (bukan cuma dugaan): global contrast stretch
-   yang dipakai sebelumnya membuat Tesseract salah baca label "ALAMAT"
-   jadi "Aiamat" (persis skenario yang sudah diwanti-wanti di komentar
-   kode lama) — karena regex label butuh match persis, seluruh field
-   Alamat hilang. Diganti CLAHE (adaptive per-tile, bukan global) —
-   diuji offline pakai foto asli user (direkonstruksi dari screenshot
-   yang sama), hasilnya Nama & label Alamat kebaca benar, NIK 15/16
-   digit benar. **Tapi ini masih pakai foto hasil rekonstruksi dari
-   screenshot (resolusi diturunkan), BUKAN pipeline live-device yang
-   sesungguhnya** — perlu dikonfirmasi lagi dengan tes ulang langsung
-   di HP sebelum dianggap tuntas.
+1. **[Akurasi OCR] Perlu tes ulang di device fisik setelah commit
+   terbaru (fuzzy label matching, lihat entri Selesai 2026-08-05
+   "lanjutan")** — menggantikan status sebelumnya soal Otsu+two-pass
+   (`a796a93`). Tambahan di atas `a796a93`: label NAMA/ALAMAT sekarang
+   dicocokkan pakai jarak-edit Levenshtein (toleran 1 huruf salah baca,
+   mis. "Alama" tetap dikenali sebagai ALAMAT), bukan regex exact-match
+   `\bALAMAT\b` yang sebelumnya bikin seluruh field hilang kalau
+   Tesseract salah baca huruf pertama/terakhir label itu sendiri. Ini
+   juga memperbaiki sesi sebelumnya yang sempat terhenti di tengah
+   jalan (ditemukan syntax error dari edit yang terputus — deklarasi
+   `stripFuzzyLabel` dobel/rusak — sudah diperbaiki, `stripLabel` yang
+   sudah tidak dipakai dihapus, `npm run build` + `npx eslint` bersih).
+   **Belum ada bukti tes fisik untuk versi ini** — perlu dites ulang
+   dari nol di HP asli sebelum dianggap tuntas.
 2. **Deploy Vercel (`idcard-brown-delta`) sempat 2 commit tertinggal**
    — **dicek 2026-08-04**: akun Vercel yang terhubung ke sesi kerja ini
    (`ayahbaik's projects`) cuma punya akses ke project `sikara`, TIDAK
@@ -49,6 +48,72 @@
    remote manapun tanpa akses fisik ke perangkat di lapangan.
 
 ## ✅ Selesai
+
+### 2026-08-05 (lanjutan) — Fuzzy label matching untuk Nama/Alamat + perbaiki sesi terputus
+- Diminta user: "baca WORK_LOG dan lanjutkan pekerjaan ini" (disertai
+  screenshot sesi Claude Code lain yang sedang mengedit `lib/ocr.ts`,
+  tengah proses "update extractNamaAlamat untuk pakai fuzzy match" lalu
+  membersihkan variabel yang tidak lagi dipakai).
+- WORK_LOG dibaca dulu sesuai instruksi filenya sendiri. Ditemukan
+  working tree punya 2 file modified yang belum sempat di-commit sesi
+  sebelumnya (`WORK_LOG.md`, `mobile-app/lib/ocr.ts`) di atas HEAD
+  `a796a93`.
+- `npm run build` dijalankan dulu untuk cek state sebenarnya (jangan
+  asumsi otomatis "sudah selesai" dari screenshot) — **ketemu syntax
+  error nyata**: `function stripFuzzyLabel(...): string {` dobel,
+  deklarasi pertama terpotong di tengah (langsung disambung komentar
+  JSDoc `levenshtein` tanpa `}` penutup) — sisa dari proses edit yang
+  terhenti. Diperbaiki: baris deklarasi pertama yang rusak dihapus,
+  deklarasi lengkap yang benar (di bawahnya) dipertahankan.
+- Fungsi `stripLabel` (lama, sudah digantikan `stripFuzzyLabel`)
+  dicek dulu pemakaiannya (`grep`) — dikonfirmasi tidak dipakai di
+  mana pun, dihapus.
+- Perubahan inti yang sekarang utuh & lolos build: `findFuzzyLabel()` +
+  `levenshtein()` — label NAMA/ALAMAT dicocokkan dengan toleransi jarak-
+  edit 1 (bukan regex exact-match `\bALAMAT\b` seperti sebelumnya),
+  memperbaiki kasus nyata dari sesi 2026-08-04 di mana "ALAMAT" terbaca
+  "Alama" oleh Tesseract dan bikin seluruh field hilang.
+- Diverifikasi 2 lapis sebelum commit: (1) `npm run build` (Turbopack +
+  TypeScript) bersih penuh, semua route ter-generate; (2)
+  `npx eslint lib/ocr.ts app/register/page.tsx` tanpa warning; (3)
+  logika `extractNamaAlamat`+`findFuzzyLabel` diekstrak & dijalankan
+  lewat Node.js langsung terhadap sampel teks OCR nyata (dari foto KTP
+  user di sesi sebelumnya, mengandung "Alama" tanpa huruf "t") — hasil
+  `nama: "MAMAN"`, `alamat` tertangkap benar, mengonfirmasi fuzzy match
+  bekerja seperti yang dimaksud.
+- **Catatan jujur**: sama seperti seluruh riwayat OCR di atas — ini
+  lolos build & tervalidasi lewat simulasi offline, TAPI **belum ada
+  bukti tes fisik di HP asli** untuk kombinasi fuzzy-match ini. Lihat
+  item "Belum" #1.
+
+### 2026-08-05 — Verifikasi status git + commit & push perubahan mobile-app
+- Diminta user: "commit & push untuk pekerjaan dan perbaikan di
+  mobile-app". Sebelum eksekusi, dicek dulu WORK_LOG.md (atas
+  instruksi user) — ternyata log sudah berisi banyak entri sampai
+  2026-08-04 dari sesi lain yang mengklaim sudah "di-push", jadi
+  dicek ulang `git fetch` + `git status` dulu (jangan percaya klaim
+  di log begitu saja) — dikonfirmasi: semua yang tercatat di log
+  memang sudah `origin/main`, cuma ada 1 file belum ter-commit:
+  `mobile-app/lib/ocr.ts`.
+- Isi perubahan (WIP dari sesi lain, koheren/utuh bukan setengah
+  jadi): revert CLAHE (commit `0895966`) kembali ke contrast-stretch,
+  tapi kali ini berbasis **Otsu threshold** (dihitung dari histogram
+  foto itu sendiri, bukan titik tengah 128 tetap); tambah **OCR
+  dua-pass** (`recognizeOnce` dipanggil dengan PSM SINGLE_BLOCK dulu,
+  kalau ada field NIK/Nama/Alamat yang masih kosong dicoba lagi
+  dengan PSM SPARSE_TEXT, hasil digabung per-field lewat
+  `fieldsFound`); tambah `cleanExtractedValue()` untuk buang noise
+  simbol dari tekstur hologram KTP yang suka nempel di teks
+  ("— MAMAN = = —=———" → "MAMAN"); perbaikan lanjutan di
+  `extractNik()` (fallback bertingkat: dekat label NIK → digit run
+  berspasi di seluruh dokumen → normalisasi huruf↔angka card-wide
+  dengan validasi struktur).
+- Diverifikasi dulu sebelum commit: `npx tsc --noEmit` bersih, `npm
+  run build` sukses penuh (semua route ke-generate). Commit `a796a93`,
+  push ke `origin/main` berhasil (`289d6de..a796a93`).
+- **Catatan jujur**: ini kode yang sehat secara build, TAPI belum ada
+  bukti tes fisik untuk kombinasi Otsu+two-pass ini — lihat item
+  "Belum" #1.
 
 ### 2026-08-04 (lanjutan 4) — Root cause OCR gagal total di device fisik: CLAHE
 - User kirim screenshot tes fisik nyata (foto KTP asli, bukan foto
