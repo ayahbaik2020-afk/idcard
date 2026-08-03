@@ -18,19 +18,13 @@
 > asumsi awal dari diskusi 2026-08-01 — sesuaikan kalau ada
 > pertimbangan lain dari lapangan.
 
-1. **[Integritas data] Tidak ada proteksi KTP duplikat** saat
-   registrasi — NIK yang sudah terdaftar bisa didaftarkan ulang,
-   berisiko data ganda yang makin menumpuk selama belum diperbaiki.
-   Perlu validasi cek NIK existing sebelum submit.
-2. **[Akurasi/UX] OCR KTP — hasil tes terbaru user** (setelah fix
+1. **[Akurasi/UX] OCR KTP — hasil tes terbaru user** (setelah fix
    `eng`+PSM): via kamera HP, Nama & NIK sudah terbaca benar tapi
    **Alamat masih belum**. Via upload file dari browser (bukan live
    camera), **cuma NIK yang berhasil kebaca** (Nama/Alamat gagal) —
    kemungkinan jalur upload file tidak lewat preprocessing/crop yang
-   sama dengan jalur live camera, perlu ditelusuri. Prioritas lebih
-   rendah dari #1 karena fungsi inti (NIK) sudah jalan di kedua
-   jalur, ini penyempurnaan.
-3. **Deploy Vercel (`idcard-brown-delta`) sempat 2 commit tertinggal**
+   sama dengan jalur live camera, perlu ditelusuri.
+2. **Deploy Vercel (`idcard-brown-delta`) sempat 2 commit tertinggal**
    (`4ae8fce`, `5dff99c` tidak auto-deploy, stuck di commit `197d705`
    selama ~2 jam) — root cause pastinya belum dikonfirmasi (dugaan:
    push oleh akun GitHub `IT-Merak` yang mungkin bukan member tim
@@ -40,21 +34,64 @@
    Vercel dashboard (tab Deployments untuk status "Skipped"/"Failed",
    dan Settings → Git untuk daftar member tim) supaya commit-commit
    selanjutnya tidak mengalami hal sama.
-4. **PVC PLANT**: belum ada satupun record attendance tercatat di
+3. **PVC PLANT**: belum ada satupun record attendance tercatat di
    database (beda dengan EDC/VCM yang sudah dikonfirmasi ada bug
    mismatch nama plant). Belum jelas apakah PVC juga ada bug serupa
    atau memang belum pernah dipakai — perlu dicoba scan langsung di
    plant-display PVC untuk konfirmasi.
-5. **Data historis `work_hours`** yang mungkin sudah kadung salah
+4. **Data historis `work_hours`** yang mungkin sudah kadung salah
    dihitung (dari bug sesi >24 jam yang sudah diperbaiki) belum
    dikoreksi — perbaikan yang sudah jalan cuma berlaku untuk
    perhitungan baru ke depan.
-6. **Redesign plant-display**: sudah dites lewat code review + PHP
+5. **Redesign plant-display**: sudah dites lewat code review + PHP
    lint, **belum dikonfirmasi tampilannya langsung di layar TV/tablet
    plant** (terutama kontras warna kartu vs video, ukuran font di
    layar besar, dan posisi scanner pojok kanan-bawah).
+6. **`activity_logs` tidak punya kolom `description`** — setiap
+   pemanggilan `logActivity($action, $table, $id, $description)` di
+   seluruh codebase diam-diam membuang parameter `$description`-nya
+   (cuma `action`/`table_name`/`record_id`/timestamp yang tersimpan).
+   Ditemukan tidak sengaja saat verifikasi fitur renewal ID Card
+   (2026-08-03) — log activity jadi kurang berguna untuk audit karena
+   tidak ada detail apa yang sebenarnya terjadi. Perlu tambah kolom
+   `description TEXT` + update query INSERT di `logActivity()`.
 
 ## ✅ Selesai
+
+### 2026-08-03 — ID Card baru otomatis saat registrasi diperpanjang
+- `ContractorService::updateContractor()`: kalau kontraktor tadinya
+  expired lalu `expiry_date` diupdate jadi hari-ini-atau-lebih (lewat
+  tombol Perpanjang di menu Man Power Expired), sistem otomatis
+  generate nomor **ID Card baru** + **QR code baru** (file QR lama
+  dihapus). Edit biasa yang tidak menyentuh record expired tidak
+  terpengaruh, ID Card lama tetap.
+- `ContractorRepository::updateContractor()`: kolom `id_card`
+  sebelumnya tidak pernah ikut ter-UPDATE sama sekali — sekarang
+  pakai `COALESCE` supaya renewal bisa set nilai baru tanpa
+  mengganggu edit biasa.
+- Pesan konfirmasi "Registrasi berhasil diperpanjang. ID Card baru:
+  X" muncul di dashboard setelah submit.
+- Ditest langsung ke data asli: kontraktor `25.0034` (expired) →
+  diperpanjang → jadi `26.0002`, dikonfirmasi lewat query DB langsung
+  (id_card, qr_code, expiry_date semua berubah benar), file QR baru
+  ada di disk, file QR lama tidak ada, 2 entry `activity_logs` di
+  timestamp yang tepat.
+- Commit `b61ea04`, sudah di-push.
+
+### 2026-08-03 — Proteksi NIK/KTP duplikat di registrasi mobile
+- Endpoint baru `app/api/register/check-ktp` (Next.js, service_role
+  key) — cek NIK terhadap `synced_contractors` (sudah masuk MySQL
+  lokal) DAN `staging_contractors` berstatus `pending` (submission
+  lain yang belum ke-sync). Server-side karena kedua tabel itu
+  di-RLS-lock dari SELECT oleh anon key.
+- `register/page.tsx`: cek ini dijalankan sebelum cek blacklist —
+  kalau duplikat, tampilkan layar khusus (nama yang cocok, sudah
+  tersinkron atau masih pending) dan blokir lanjut ke foto/submit.
+- Ditest langsung: NIK asli yang sudah di `synced_contractors` →
+  terdeteksi `source:"synced"`; NIK dummy yang sengaja diinsert
+  sebagai `staging_contractors` status `pending` → terdeteksi
+  `source:"pending"`. Data test sudah dibersihkan.
+- Commit `b61ea04`, sudah di-push.
 
 ### 2026-08-01 — Man power expired masih bisa aktif masuk plant (was #1)
 - Root cause: `AttendanceController::scan()` cuma cek `status == 'Banned'`,
@@ -79,6 +116,18 @@
   kalau perlu), jadi cukup dipakai langsung begitu admin lihat badge
   Expired-nya.
 - Commit `c6547dc`, sudah di-push ke `origin/main`.
+- **Update 2026-08-03**: menu terpisah `expired_contractors` dibuat
+  (bukan cuma filter di list biasa) — lihat entri terkait di bawah.
+
+### 2026-08-01 — Menu terpisah "Man Power Expired"
+- `ContractorController::expired()` + route `page=expired_contractors`,
+  reuse `ContractorService::getList()` dengan filter virtual `Expired`.
+- Template baru `contractors/expired.php`: kolom "Sudah Lewat X hari",
+  tombol "Perpanjang" menonjol, filter search/company/plant.
+- Sidebar menu + card Dashboard "MAN POWER EXPIRED" diarahkan ke sini.
+- Ditest live: render dengan data asli (274 hari overdue), filter
+  search & plant terverifikasi jalan.
+- Commit `725574e`, sudah di-push.
 
 ### 2026-08-01 — Setup PHPUnit untuk unit test `src/Support/`
 - `composer.json` (script `test`), `phpunit.xml`, `tests/bootstrap.php`,
@@ -88,8 +137,6 @@
 - `templates/plant_display.php`: glass-card background diringankan
   jadi `rgba(255,255,255,0.10)` sesuai catatan redesign 2026-07-30.
 - Commit `bf8d297`, sudah di-push.
-
-
 
 ### 2026-08-01 — OCR KTP kacau total: root cause & fix (bahasa Tesseract)
 - User lapor hasil OCR kacau total di device asli setelah commit
@@ -113,7 +160,7 @@
   ke `origin/main`.
 - Follow-up dari user setelah dites: Nama & NIK sudah benar via kamera
   HP, tapi Alamat & jalur upload-file masih bermasalah (lihat item
-  "Belum" #3).
+  "Belum" #1).
 
 ### 2026-08-01 — Push commit OCR KTP ke origin/main
 - Commit `5dff99c` (perbaikan OCR KTP) dicek: local `main` ahead 1
