@@ -57,18 +57,20 @@ function bestNikWindow(digits: string): string {
   return digits.slice(0, 16);
 }
 
+const DIGIT_LIKE_RUN = /[\dOoQDiIlL|!zZsSbBgG?]{14,26}/g;
+
 /** Tolerant NIK extraction: OCR frequently inserts stray spaces/characters
  * around the digits and misreads some digits as similar-looking letters,
  * so a strict /\d{16}/ match often fails even when the number was read
  * essentially correctly. Letter->digit normalization is deliberately
- * scoped to text near the "NIK" label only (never the whole card), so it
- * can't accidentally turn part of the Nama/Alamat text into a fake NIK. */
+ * scoped to text near the "NIK" label first (safest case: we already
+ * know we're looking at the right line), then widened card-wide only as
+ * a last resort - see below. */
 function extractNik(text: string, lines: string[]): string {
   const nikLineIdx = lines.findIndex((l) => /\bNIK\b/i.test(l));
   if (nikLineIdx !== -1) {
     const nearby = `${lines[nikLineIdx]} ${lines[nikLineIdx + 1] ?? ""}`;
-    const runs =
-      nearby.match(/[\dOoQDiIlL|!zZsSbBgG?]{14,26}/g) ?? [];
+    const runs = nearby.match(DIGIT_LIKE_RUN) ?? [];
     let firstValidLength = "";
     for (const run of runs) {
       const normalized = digitsOnly(normalizeOcrDigits(run));
@@ -81,14 +83,34 @@ function extractNik(text: string, lines: string[]): string {
     }
     if (firstValidLength) return firstValidLength;
   }
-  // Last resort: pure digit-with-spaces run anywhere in the document (no
-  // letter normalization here - too risky to apply card-wide).
+
+  // Last resort #1: pure digit-with-spaces run anywhere in the document
+  // (no letter normalization - the safest possible fallback).
   const spacedRuns = text.match(/\d[\d ]{14,22}\d/g) ?? [];
   for (const run of spacedRuns) {
     const d = digitsOnly(run);
     if (d.length === 16) return d;
   }
-  return text.match(/\d{16}/)?.[0] ?? "";
+  const plain16 = text.match(/\d{16}/)?.[0];
+  if (plain16) return plain16;
+
+  // Last resort #2: same letter-normalization used for the NIK-labeled
+  // line above, but applied card-wide. Only reached when nothing above
+  // worked - typically means OCR failed to output the word "NIK" at all
+  // (glare/noise wiped out that specific line), not just the digits next
+  // to it. Widening the search this far is safe (despite touching
+  // Nama/Alamat text too) because every candidate window still has to
+  // pass isPlausibleNik - a real province/regency/district + DOB + serial
+  // shape - before being accepted; a random stretch of name/address text
+  // coincidentally matching that exact structure is exceedingly unlikely.
+  const cardWideRuns = text.match(DIGIT_LIKE_RUN) ?? [];
+  for (const run of cardWideRuns) {
+    const normalized = digitsOnly(normalizeOcrDigits(run));
+    if (normalized.length < 16) continue;
+    const windowed = bestNikWindow(normalized);
+    if (isPlausibleNik(windowed)) return windowed;
+  }
+  return "";
 }
 
 const NAMA_LABEL = /\bNAMA\b/i;
@@ -98,8 +120,8 @@ const ALAMAT_LABEL = /\bALAMAT\b/i;
  * RT/RW, Kel/Desa, Kecamatan, Agama, Status Perkawinan, Pekerjaan,
  * Kewarganegaraan, Berlaku Hingga) - the app only needs NIK/Nama/Alamat,
  * so none of these are extracted or stored. They're matched here for ONE
- * reason only: to tell extractNama/extractAlamat where those two fields
- * END, since Alamat especially is printed across several unlabeled
+ * reason only: to tell extractNamaAlamat where those two fields END,
+ * since Alamat especially is printed across several unlabeled
  * continuation lines (street, then RT/RW, Kel/Desa, Kecamatan) and would
  * otherwise keep swallowing every line below it to the bottom of the
  * card. */
@@ -108,6 +130,24 @@ const OTHER_LABEL =
 
 function stripLabel(line: string, label: RegExp): string {
   return line.replace(label, "").replace(/^[\s:.\-|]+/, "").trim();
+}
+
+/** OCR of the card's hologram/guilloche background texture frequently
+ * shows up as stray symbol noise glued onto real text (seen in practice:
+ * "MAMAN" read back as "— MAMAN = = —=——="). None of "=", "~", "^", "_",
+ * a lone "-"/"—" surrounded by spaces, or "|" can legitimately appear in
+ * an Indonesian name or address, so they're safe to strip outright.
+ * Deliberately NOT touching "-", "/", "." when they sit directly between
+ * letters/digits (address values like "BLOK C3.NO.23" or "RT/RW"
+ * fragments that occasionally leak into a wrapped Alamat line use those
+ * for real). */
+function cleanExtractedValue(s: string): string {
+  return s
+    .replace(/[=~^_|]+/g, " ")
+    .replace(/(?:—|--+)/g, " ")
+    .replace(/(?<![A-Za-z0-9])-(?![A-Za-z0-9])/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 /** Nama and Alamat only. Nama is a single line (label + value, or value on
@@ -153,116 +193,25 @@ function extractNamaAlamat(lines: string[]): { nama: string; alamat: string } {
       alamat = alamat ? `${alamat} ${line}` : line;
     }
   }
-  return { nama, alamat };
+  return { nama: cleanExtractedValue(nama), alamat: cleanExtractedValue(alamat) };
 }
 
-/** CLAHE (Contrast Limited Adaptive Histogram Equalization) applied
- * in-place to a grayscale pixel buffer, tile-by-tile with bilinear
- * interpolation across tile boundaries (standard algorithm, see
- * Zuiderveld 1994 / the same technique OpenCV's cv2.CLAHE implements).
+/** Grayscale + adaptive contrast stretch + mild upscale, done in-browser
+ * via canvas before handing the image to Tesseract. KTP backgrounds have
+ * a printed hologram/guilloche pattern that OCR engines struggle with on
+ * a raw color photo; flattening to high-contrast grayscale measurably
+ * helps text recognition in practice.
  *
- * This replaces a plain global contrast stretch, which was empirically
- * found (2026-08 - tested offline against a real user KTP photo with
- * both approaches side by side) to be the actual root cause of a
- * production failure: the printed hologram/guilloche background on a
- * KTP varies in brightness across the card, so a single global contrast
- * curve leaves some regions too dark and others blown out. That
- * inconsistency was enough to make Tesseract misread the "ALAMAT" label
- * itself as "Aiamat" (silently dropping the whole address - the label
- * regex requires an exact match), and to glue a stray extra digit onto
- * the NIK. CLAHE equalizes contrast *locally* per tile instead of
- * globally, which fixed both in the same side-by-side test (see
- * WORK_LOG.md for the full before/after). */
-function applyClahe(
-  gray: Uint8ClampedArray,
-  width: number,
-  height: number,
-  tilesX = 8,
-  tilesY = 8,
-  clipLimit = 3.0
-): void {
-  const tileW = Math.ceil(width / tilesX);
-  const tileH = Math.ceil(height / tilesY);
-
-  // One 0-255 -> 0-255 mapping (histogram-equalized, with the histogram
-  // clipped at `clipLimit` to avoid over-amplifying noise in near-flat
-  // regions) per tile.
-  const maps: Uint8ClampedArray[][] = [];
-  for (let ty = 0; ty < tilesY; ty++) {
-    maps[ty] = [];
-    for (let tx = 0; tx < tilesX; tx++) {
-      const x0 = tx * tileW;
-      const y0 = ty * tileH;
-      const x1 = Math.min(width, x0 + tileW);
-      const y1 = Math.min(height, y0 + tileH);
-      const hist = new Uint32Array(256);
-      for (let y = y0; y < y1; y++) {
-        for (let x = x0; x < x1; x++) {
-          hist[gray[y * width + x]]++;
-        }
-      }
-      const pixelCount = (x1 - x0) * (y1 - y0);
-      const clip = Math.max(1, Math.round((clipLimit * pixelCount) / 256));
-      let excess = 0;
-      for (let i = 0; i < 256; i++) {
-        if (hist[i] > clip) {
-          excess += hist[i] - clip;
-          hist[i] = clip;
-        }
-      }
-      const redistribute = excess / 256;
-      const map = new Uint8ClampedArray(256);
-      let cdf = 0;
-      const scale = 255 / pixelCount;
-      for (let i = 0; i < 256; i++) {
-        cdf += hist[i] + redistribute;
-        map[i] = Math.round(cdf * scale);
-      }
-      maps[ty][tx] = map;
-    }
-  }
-
-  // Apply each pixel's mapping as a bilinear blend of its 4 nearest tile
-  // centers, so there's no visible seam at tile edges.
-  const out = new Uint8ClampedArray(gray.length);
-  for (let y = 0; y < height; y++) {
-    const tyF = (y - tileH / 2) / tileH;
-    const ty0Raw = Math.floor(tyF);
-    const wy = tyF - ty0Raw;
-    const ty0 = Math.min(Math.max(ty0Raw, 0), tilesY - 1);
-    const ty1 = Math.min(Math.max(ty0Raw + 1, 0), tilesY - 1);
-    for (let x = 0; x < width; x++) {
-      const txF = (x - tileW / 2) / tileW;
-      const tx0Raw = Math.floor(txF);
-      const wx = txF - tx0Raw;
-      const tx0 = Math.min(Math.max(tx0Raw, 0), tilesX - 1);
-      const tx1 = Math.min(Math.max(tx0Raw + 1, 0), tilesX - 1);
-
-      const v = gray[y * width + x];
-      const v00 = maps[ty0][tx0][v];
-      const v01 = maps[ty0][tx1][v];
-      const v10 = maps[ty1][tx0][v];
-      const v11 = maps[ty1][tx1][v];
-      const top = v00 * (1 - wx) + v01 * wx;
-      const bottom = v10 * (1 - wx) + v11 * wx;
-      out[y * width + x] = Math.round(top * (1 - wy) + bottom * wy);
-    }
-  }
-  out.forEach((v, i) => (gray[i] = v));
-}
-
-/** Grayscale + CLAHE + mild upscale, done in-browser via canvas before
- * handing the image to Tesseract. See `applyClahe` above for why CLAHE
- * specifically (replacing a plain global contrast stretch). Resolution
- * cap raised from the previous 1600px to 2200px: modern phone cameras
- * commonly produce crops well above 1600px on the long edge, and
- * downscaling further than necessary throws away real text detail
- * (small fields like RT/RW are only a handful of pixels tall to begin
- * with) - this only matters for photos that are already larger than
- * that, small photos still get upscaled the same as before. */
+ * The contrast stretch is centered on an Otsu threshold computed from the
+ * image's own brightness histogram, instead of a fixed midpoint (128).
+ * A physical photo (as opposed to a flat gallery scan) commonly has an
+ * uneven overall brightness - glare, shadow, or a warm/cool cast from
+ * indoor lighting - which pushes the true text/background boundary well
+ * off 128; stretching around a fixed midpoint in that case can wash out
+ * or flatten exactly the text pixels that most need contrast. */
 async function preprocessForOcr(source: File | Blob): Promise<Blob> {
   const bitmap = await createImageBitmap(source);
-  const scale = Math.min(2, 2200 / Math.max(bitmap.width, bitmap.height)) || 1;
+  const scale = Math.min(2, 1600 / Math.max(bitmap.width, bitmap.height)) || 1;
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
@@ -272,23 +221,75 @@ async function preprocessForOcr(source: File | Blob): Promise<Blob> {
 
   const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const d = imgData.data;
-  const w = canvas.width;
-  const h = canvas.height;
-  const gray = new Uint8ClampedArray(w * h);
+  const pixelCount = d.length / 4;
+  const gray = new Float32Array(pixelCount);
+  const hist = new Array(256).fill(0);
   for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-    gray[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    gray[p] = g;
+    hist[Math.min(255, Math.max(0, Math.round(g)))]++;
   }
 
-  applyClahe(gray, w, h);
+  // Otsu's method: find the threshold that maximizes between-class
+  // variance (foreground text vs. background) from the histogram alone -
+  // no external dependency needed, cheap enough for a one-shot form.
+  let sumAll = 0;
+  for (let t = 0; t < 256; t++) sumAll += t * hist[t];
+  let sumB = 0;
+  let wB = 0;
+  let maxVariance = -1;
+  let threshold = 128;
+  for (let t = 0; t < 256; t++) {
+    wB += hist[t];
+    if (wB === 0) continue;
+    const wF = pixelCount - wB;
+    if (wF === 0) break;
+    sumB += t * hist[t];
+    const mB = sumB / wB;
+    const mF = (sumAll - sumB) / wF;
+    const between = wB * wF * (mB - mF) * (mB - mF);
+    if (between > maxVariance) {
+      maxVariance = between;
+      threshold = t;
+    }
+  }
 
+  const gain = 1.6;
   for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-    d[i] = d[i + 1] = d[i + 2] = gray[p];
+    const contrasted = Math.min(
+      255,
+      Math.max(0, (gray[p] - threshold) * gain + 128)
+    );
+    d[i] = d[i + 1] = d[i + 2] = contrasted;
   }
   ctx.putImageData(imgData, 0, 0);
 
   return new Promise((resolve) => {
     canvas.toBlob((blob) => resolve(blob ?? source), "image/jpeg", 0.92);
   });
+}
+
+async function recognizeOnce(
+  worker: Awaited<ReturnType<typeof createWorker>>,
+  image: Blob | string,
+  psm: PSM
+): Promise<KtpOcrResult> {
+  await worker.setParameters({ tessedit_pageseg_mode: psm });
+  const {
+    data: { text },
+  } = await worker.recognize(image);
+
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const { nama, alamat } = extractNamaAlamat(lines);
+  return { nik: extractNik(text, lines), nama, alamat, rawText: text };
+}
+
+function fieldsFound(r: KtpOcrResult): number {
+  return [r.nik, r.nama, r.alamat].filter(Boolean).length;
 }
 
 export async function scanKtp(
@@ -309,15 +310,10 @@ export async function scanKtp(
   const worker = await createWorker("eng", 1, {
     logger: (m) => {
       if (m.status === "recognizing text" && onProgress) {
-        onProgress(Math.round(m.progress * 100));
+        onProgress(Math.round(m.progress * 55));
       }
     },
   });
-  // SINGLE_BLOCK: treat the card as one uniform block of text rather than
-  // trying to auto-detect a page layout (the default AUTO mode) - this
-  // measurably improved accuracy in testing on the dense, multi-field KTP
-  // layout.
-  await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_BLOCK });
 
   try {
     const preprocessed =
@@ -325,22 +321,40 @@ export async function scanKtp(
         ? imageSource
         : await preprocessForOcr(imageSource);
 
-    const {
-      data: { text },
-    } = await worker.recognize(preprocessed);
+    // Pass 1: SINGLE_BLOCK - treats the card as one uniform block of text
+    // rather than auto-detecting a page layout. Best result in testing
+    // for this dense, multi-field KTP layout when the photo is clean.
+    const first = await recognizeOnce(worker, preprocessed, PSM.SINGLE_BLOCK);
+    if (fieldsFound(first) === 3) {
+      onProgress?.(100);
+      return first;
+    }
 
-    const lines = text
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
+    // Pass 2: only when pass 1 missed at least one of NIK/Nama/Alamat.
+    // SPARSE_TEXT treats the image as scattered blocks of text instead of
+    // one uniform block - a different segmentation strategy that can
+    // recover a line SINGLE_BLOCK merged into noise or dropped entirely
+    // (seen in practice: NIK/Alamat coming back completely blank from
+    // pass 1 despite a well-cropped photo). Costs a second OCR run, but
+    // this only runs once per registration, so the extra ~1-2s is worth
+    // it against handing the user a form with fields silently blank.
+    if (onProgress) onProgress(55);
+    const second = await recognizeOnce(worker, preprocessed, PSM.SPARSE_TEXT);
+    onProgress?.(100);
 
-    const { nama, alamat } = extractNamaAlamat(lines);
+    if (fieldsFound(second) <= fieldsFound(first)) return first;
 
+    // Field-level merge: take whichever pass actually read each field,
+    // so a pass that's better overall can't blank out a field the other
+    // pass got right.
     return {
-      nik: extractNik(text, lines),
-      nama,
-      alamat,
-      rawText: text,
+      nik: second.nik || first.nik,
+      nama: second.nama || first.nama,
+      alamat: second.alamat || first.alamat,
+      rawText:
+        second.rawText.length > first.rawText.length
+          ? second.rawText
+          : first.rawText,
     };
   } finally {
     await worker.terminate();
