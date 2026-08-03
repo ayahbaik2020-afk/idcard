@@ -96,7 +96,17 @@ export default function CameraCapture({ onCapture, frameLabel, aspect = "card" }
 
   async function cropFallbackFile(file: File): Promise<File> {
     try {
-      const bitmap = await createImageBitmap(file);
+      // imageOrientation: "from-image" makes createImageBitmap apply the
+      // photo's EXIF rotation tag before handing back pixel data - without
+      // it, phone photos (which are very often stored "sideways" at the
+      // sensor level with an EXIF tag telling viewers to rotate them) get
+      // cropped using their raw, unrotated width/height. That silently
+      // crops the wrong rectangle (e.g. slicing off the left edge of every
+      // line of text) while still looking fine in <img> previews, which
+      // DO respect EXIF rotation automatically - hence the mismatch between
+      // "looks fine in the preview" and "OCR/crop is reading the wrong
+      // region".
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
       const { sx, sy, sWidth, sHeight } = computeCoverCrop(bitmap.width, bitmap.height);
 
       const canvas = document.createElement("canvas");
