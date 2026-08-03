@@ -18,20 +18,50 @@
 > asumsi awal dari diskusi 2026-08-01 — sesuaikan kalau ada
 > pertimbangan lain dari lapangan.
 
-1. **[Akurasi OCR] Perlu tes ulang di device fisik setelah commit
-   terbaru (fuzzy label matching, lihat entri Selesai 2026-08-05
-   "lanjutan")** — menggantikan status sebelumnya soal Otsu+two-pass
-   (`a796a93`). Tambahan di atas `a796a93`: label NAMA/ALAMAT sekarang
-   dicocokkan pakai jarak-edit Levenshtein (toleran 1 huruf salah baca,
-   mis. "Alama" tetap dikenali sebagai ALAMAT), bukan regex exact-match
-   `\bALAMAT\b` yang sebelumnya bikin seluruh field hilang kalau
-   Tesseract salah baca huruf pertama/terakhir label itu sendiri. Ini
-   juga memperbaiki sesi sebelumnya yang sempat terhenti di tengah
-   jalan (ditemukan syntax error dari edit yang terputus — deklarasi
-   `stripFuzzyLabel` dobel/rusak — sudah diperbaiki, `stripLabel` yang
-   sudah tidak dipakai dihapus, `npm run build` + `npx eslint` bersih).
-   **Belum ada bukti tes fisik untuk versi ini** — perlu dites ulang
-   dari nol di HP asli sebelum dianggap tuntas.
+1. **[Akurasi OCR] Bukti tes fisik PERTAMA masuk 2026-08-05 — 2 bug
+   konkret ditemukan, fokus perbaikan HANYA NIK/Nama/Alamat (sesuai
+   arahan user).** User kirim raw OCR text asli dari HP fisik (bukan
+   simulasi/screenshot lagi). Hasil mentahnya:
+   ```
+   NIK : 3b72051802840001        (asli: 3672051802840001)
+   Nama i —— =                   (asli: MAMAN)
+   Alama : PERUM GRAND SUTERA CILEGON
+   a  —— — —
+   KelDesa -iEBAKDENOK —— — —
+   ```
+   Direproduksi offline lewat Node.js langsung terhadap fungsi
+   `extractNik`/`extractNamaAlamat` yang ter-commit (`df4f402`), BUKAN
+   tebakan — 2 bug nyata terkonfirmasi:
+   - **NIK salah 1 digit** (`3872051802840001` vs asli
+     `3672051802840001`): Tesseract baca digit "6" sebagai huruf "b".
+     `normalizeOcrDigits()` memetakan `b/B` → `8`, padahal di kasus
+     nyata ini seharusnya → `6`. Asumsi lama (`b`→`8`) tidak pernah
+     punya bukti nyata, cuma dugaan visual; bukti yang ada sekarang
+     justru menunjukkan sebaliknya.
+   - **Nama jadi "i"** (harusnya kosong, bukan "MAMAN" juga karena
+     OCR gagal total baca nilainya di foto ini): baris mentahnya
+     "Nama i —— =" - label "Nama" kebaca benar, tapi isinya cuma
+     noise ("i" + karakter simbol dari tekstur hologram). Kode
+     sekarang tidak punya filter "apakah hasil ini teks asli atau
+     cuma noise" - satu huruf nyasar pun langsung dianggap sebagai
+     nilai valid dan mengisi form, berpotensi menyesatkan user yang
+     tidak teliti mengecek ulang.
+   - **Alamat kemasukan noise**: "PERUM GRAND SUTERA CILEGON a" -
+     baris kosong "a —— — —" (murni noise dari tekstur kartu) ikut
+     nyambung ke Alamat sebelum baris "KelDesa..." dikenali sebagai
+     batas. Root cause sama dengan Nama: tidak ada filter noise vs
+     konten asli untuk baris lanjutan Alamat.
+   - Nama/NIK/Alamat lain di raw text yang levelnya "cukup terbaca"
+     (Tempat/Tgl Lahir "SUBANG. 1802-1984", Kecamatan "CITANGEKE") -
+     tidak relevan diperbaiki, field itu memang sengaja tidak dipakai
+     app ini (sesuai keputusan 2026-08-04 fokus 3 field saja).
+   - **Rencana perbaikan** (dikerjakan setelah entri log ini): (1)
+     `normalizeOcrDigits`: `b/B` → `6` bukan `8`. (2) Tambah filter
+     "cukup huruf/angka asli" (bukan cuma simbol noise) sebelum
+     menerima nilai Nama final ATAU baris lanjutan Alamat - kalau
+     gagal filter, biarkan kosong (field jadi "tidak terbaca", bukan
+     terisi sampah) supaya user pasti sadar harus isi manual, bukan
+     kecolongan submit data salah.
 2. **Deploy Vercel (`idcard-brown-delta`) sempat 2 commit tertinggal**
    — **dicek 2026-08-04**: akun Vercel yang terhubung ke sesi kerja ini
    (`ayahbaik's projects`) cuma punya akses ke project `sikara`, TIDAK
