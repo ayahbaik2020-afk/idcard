@@ -272,22 +272,109 @@ function extractNamaAlamat(lines: string[]): { nama: string; alamat: string } {
   };
 }
 
-/** Grayscale + adaptive contrast stretch + mild upscale, done in-browser
- * via canvas before handing the image to Tesseract. KTP backgrounds have
- * a printed hologram/guilloche pattern that OCR engines struggle with on
- * a raw color photo; flattening to high-contrast grayscale measurably
- * helps text recognition in practice.
- *
- * The contrast stretch is centered on an Otsu threshold computed from the
- * image's own brightness histogram, instead of a fixed midpoint (128).
- * A physical photo (as opposed to a flat gallery scan) commonly has an
- * uneven overall brightness - glare, shadow, or a warm/cool cast from
- * indoor lighting - which pushes the true text/background boundary well
- * off 128; stretching around a fixed midpoint in that case can wash out
- * or flatten exactly the text pixels that most need contrast. */
+/** CLAHE (Contrast Limited Adaptive Histogram Equalization) applied
+ * in-place to a grayscale pixel buffer, tile-by-tile with bilinear
+ * interpolation across tile boundaries (standard algorithm, see
+ * Zuiderveld 1994 / the same technique OpenCV's cv2.CLAHE implements). */
+function applyClahe(
+  gray: Uint8ClampedArray,
+  width: number,
+  height: number,
+  tilesX = 8,
+  tilesY = 8,
+  clipLimit = 3.0
+): void {
+  const tileW = Math.ceil(width / tilesX);
+  const tileH = Math.ceil(height / tilesY);
+
+  // One 0-255 -> 0-255 mapping (histogram-equalized, with the histogram
+  // clipped at `clipLimit` to avoid over-amplifying noise in near-flat
+  // regions) per tile.
+  const maps: Uint8ClampedArray[][] = [];
+  for (let ty = 0; ty < tilesY; ty++) {
+    maps[ty] = [];
+    for (let tx = 0; tx < tilesX; tx++) {
+      const x0 = tx * tileW;
+      const y0 = ty * tileH;
+      const x1 = Math.min(width, x0 + tileW);
+      const y1 = Math.min(height, y0 + tileH);
+      const hist = new Uint32Array(256);
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          hist[gray[y * width + x]]++;
+        }
+      }
+      const pixelCount = (x1 - x0) * (y1 - y0);
+      const clip = Math.max(1, Math.round((clipLimit * pixelCount) / 256));
+      let excess = 0;
+      for (let i = 0; i < 256; i++) {
+        if (hist[i] > clip) {
+          excess += hist[i] - clip;
+          hist[i] = clip;
+        }
+      }
+      const redistribute = excess / 256;
+      const map = new Uint8ClampedArray(256);
+      let cdf = 0;
+      const scale = 255 / pixelCount;
+      for (let i = 0; i < 256; i++) {
+        cdf += hist[i] + redistribute;
+        map[i] = Math.round(cdf * scale);
+      }
+      maps[ty][tx] = map;
+    }
+  }
+
+  // Apply each pixel's mapping as a bilinear blend of its 4 nearest tile
+  // centers, so there's no visible seam at tile edges.
+  const out = new Uint8ClampedArray(gray.length);
+  for (let y = 0; y < height; y++) {
+    const tyF = (y - tileH / 2) / tileH;
+    const ty0Raw = Math.floor(tyF);
+    const wy = tyF - ty0Raw;
+    const ty0 = Math.min(Math.max(ty0Raw, 0), tilesY - 1);
+    const ty1 = Math.min(Math.max(ty0Raw + 1, 0), tilesY - 1);
+    for (let x = 0; x < width; x++) {
+      const txF = (x - tileW / 2) / tileW;
+      const tx0Raw = Math.floor(txF);
+      const wx = txF - tx0Raw;
+      const tx0 = Math.min(Math.max(tx0Raw, 0), tilesX - 1);
+      const tx1 = Math.min(Math.max(tx0Raw + 1, 0), tilesX - 1);
+
+      const v = gray[y * width + x];
+      const v00 = maps[ty0][tx0][v];
+      const v01 = maps[ty0][tx1][v];
+      const v10 = maps[ty1][tx0][v];
+      const v11 = maps[ty1][tx1][v];
+      const top = v00 * (1 - wx) + v01 * wx;
+      const bottom = v10 * (1 - wx) + v11 * wx;
+      out[y * width + x] = Math.round(top * (1 - wy) + bottom * wy);
+    }
+  }
+  out.forEach((v, i) => (gray[i] = v));
+}
+
+/** Grayscale + CLAHE + mild upscale, done in-browser via canvas before
+ * handing the image to Tesseract. CLAHE (not a global contrast stretch)
+ * is used because the printed hologram/guilloche background on a KTP
+ * varies in brightness across the card, so a single global contrast
+ * curve leaves some regions too dark and others blown out. That was
+ * confirmed (2026-08, side-by-side offline test against a real user KTP
+ * photo) to be the root cause of OCR failures: the global stretch made
+ * Tesseract misread the "ALAMAT" label itself as "Aiamat" (silently
+ * dropping the whole address) and drop the Nama value entirely. CLAHE
+ * equalizes contrast *locally* per tile instead, and the same test read
+ * Nama ("MAMAN"), Alamat, and NIK correctly. NOTE: a later session
+ * reverted this to an Otsu-based global stretch (commit a796a93) without
+ * physical-test evidence; the first real device test under that revert
+ * produced an empty Nama again ("Nama i —— ="), the exact symptom CLAHE
+ * fixed, so this restores CLAHE. Resolution cap 2200px: modern phone
+ * cameras commonly produce crops well above 1600px on the long edge, and
+ * downscaling further than necessary throws away real text detail (small
+ * fields like RT/RW are only a handful of pixels tall to begin with). */
 async function preprocessForOcr(source: File | Blob): Promise<Blob> {
   const bitmap = await createImageBitmap(source);
-  const scale = Math.min(2, 1600 / Math.max(bitmap.width, bitmap.height)) || 1;
+  const scale = Math.min(2, 2200 / Math.max(bitmap.width, bitmap.height)) || 1;
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
@@ -297,46 +384,17 @@ async function preprocessForOcr(source: File | Blob): Promise<Blob> {
 
   const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const d = imgData.data;
-  const pixelCount = d.length / 4;
-  const gray = new Float32Array(pixelCount);
-  const hist = new Array(256).fill(0);
+  const w = canvas.width;
+  const h = canvas.height;
+  const gray = new Uint8ClampedArray(w * h);
   for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-    const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-    gray[p] = g;
-    hist[Math.min(255, Math.max(0, Math.round(g)))]++;
+    gray[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
   }
 
-  // Otsu's method: find the threshold that maximizes between-class
-  // variance (foreground text vs. background) from the histogram alone -
-  // no external dependency needed, cheap enough for a one-shot form.
-  let sumAll = 0;
-  for (let t = 0; t < 256; t++) sumAll += t * hist[t];
-  let sumB = 0;
-  let wB = 0;
-  let maxVariance = -1;
-  let threshold = 128;
-  for (let t = 0; t < 256; t++) {
-    wB += hist[t];
-    if (wB === 0) continue;
-    const wF = pixelCount - wB;
-    if (wF === 0) break;
-    sumB += t * hist[t];
-    const mB = sumB / wB;
-    const mF = (sumAll - sumB) / wF;
-    const between = wB * wF * (mB - mF) * (mB - mF);
-    if (between > maxVariance) {
-      maxVariance = between;
-      threshold = t;
-    }
-  }
+  applyClahe(gray, w, h);
 
-  const gain = 1.6;
   for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-    const contrasted = Math.min(
-      255,
-      Math.max(0, (gray[p] - threshold) * gain + 128)
-    );
-    d[i] = d[i + 1] = d[i + 2] = contrasted;
+    d[i] = d[i + 1] = d[i + 2] = gray[p];
   }
   ctx.putImageData(imgData, 0, 0);
 

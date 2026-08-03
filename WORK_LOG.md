@@ -28,6 +28,22 @@
    di foto itu, bukan bug), (b) coba beberapa KTP/kondisi cahaya lain
    untuk lihat apakah fix `b→6` di NIK tidak menimbulkan masalah baru
    di kasus lain.
+   - **Update 2026-08-05 (lanjutan 3)**: user lapor Nama masih tidak
+     terbaca dan kirim raw OCR text yang sama persis dengan tes fisik
+     pertama. Ditemukan kemungkinan akar masalah baru: commit `a796a93`
+     (dari sesi lain, WIP tanpa bukti fisik) **me-revert CLAHE**
+     (commit `0895966`, yang sudah terbukti offline menang telak
+     side-by-side pada foto fisik yang sama — Nama "MAMAN" terbaca)
+     kembali ke **contrast stretch GLOBAL berbasis Otsu** (satu kurva
+     untuk seluruh kartu) + menurunkan resolusi cap 2200px→1600px.
+     Tes fisik pertama terjadi SETELAH revert itu — dan gejalanya
+     persis yang CLAHE perbaiki (Nama jadi "i" murni noise, tidak
+     terbaca). CLAHE di-restore kembali di `lib/ocr.ts` (plus
+     komentar yang mendokumentasikan kenapa revert `a796a93` keliru),
+     semua perbaikan parsing terbaru (b→6, fuzzy label, filter noise,
+     two-pass OCR) dipertahankan. Build & eslint bersih. **Masih perlu
+     dites di HP fisik** — prediksi: Nama kini terbaca karena
+     preprocessing-nya yang dulu terbukti membaca Nama di foto ini.
 2. **Deploy Vercel (`idcard-brown-delta`) sempat 2 commit tertinggal**
    — **dicek 2026-08-04**: akun Vercel yang terhubung ke sesi kerja ini
    (`ayahbaik's projects`) cuma punya akses ke project `sikara`, TIDAK
@@ -38,6 +54,19 @@
    ini). **Perlu dicek manual oleh pemilik akun**: Vercel dashboard →
    project `idcard-brown-delta` → Settings → Git (siapa yang terhubung)
    dan tab Deployments (cari status "Skipped").
+   - **Update 2026-08-05**: verifikasi dari sisi live site ternyata
+     deploy **sudah up-to-date dengan `origin/main` (HEAD `4a74055`)**.
+     Dicek bundle JS yang sedang live (`idcard-brown-delta.vercel.app`):
+     marker `[bBgG]/g,"6"` (fix NIK b→6, commit `4a74055`), filter noise
+     `cleanExtractedValue`+`alnumCount` (minified jadi `p`/`g`),
+     preprocessing Otsu, dan two-pass SPARSE_TEXT semuanya ada di
+     bundle ter-deploy — jadi tidak ada yang tertinggal. Catatan akses:
+     CLI login sebagai `ayahbaik2020-2734` (team `ayahbaik's projects`)
+     maupun `unknowntrozan-2799` (team `koemandoank-s-projects`) tidak
+     menampilkan project ini di `project ls` — menguatkan bahwa project
+     di bawah akun/tim lain, tapi fungsionalitasnya sudah beres (deploy
+     tidak ketinggalan). Yang masih menggantung cuma misteri akses akun
+     (kecil prioritasnya — tidak menghalangi fungsi).
 3. **Redesign plant-display**: **masih blocked** — perlu dikonfirmasi
    langsung di layar TV/tablet fisik plant (kontras kartu vs video,
    ukuran font, posisi scanner). Tidak bisa diverifikasi dari sesi kerja
