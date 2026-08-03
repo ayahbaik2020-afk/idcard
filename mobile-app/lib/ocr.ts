@@ -156,14 +156,113 @@ function extractNamaAlamat(lines: string[]): { nama: string; alamat: string } {
   return { nama, alamat };
 }
 
-/** Grayscale + contrast stretch + mild upscale, done in-browser via canvas
- * before handing the image to Tesseract. KTP backgrounds have a printed
- * hologram/guilloche pattern that OCR engines struggle with on a raw
- * color photo; flattening to high-contrast grayscale measurably helps
- * text recognition in practice. */
+/** CLAHE (Contrast Limited Adaptive Histogram Equalization) applied
+ * in-place to a grayscale pixel buffer, tile-by-tile with bilinear
+ * interpolation across tile boundaries (standard algorithm, see
+ * Zuiderveld 1994 / the same technique OpenCV's cv2.CLAHE implements).
+ *
+ * This replaces a plain global contrast stretch, which was empirically
+ * found (2026-08 - tested offline against a real user KTP photo with
+ * both approaches side by side) to be the actual root cause of a
+ * production failure: the printed hologram/guilloche background on a
+ * KTP varies in brightness across the card, so a single global contrast
+ * curve leaves some regions too dark and others blown out. That
+ * inconsistency was enough to make Tesseract misread the "ALAMAT" label
+ * itself as "Aiamat" (silently dropping the whole address - the label
+ * regex requires an exact match), and to glue a stray extra digit onto
+ * the NIK. CLAHE equalizes contrast *locally* per tile instead of
+ * globally, which fixed both in the same side-by-side test (see
+ * WORK_LOG.md for the full before/after). */
+function applyClahe(
+  gray: Uint8ClampedArray,
+  width: number,
+  height: number,
+  tilesX = 8,
+  tilesY = 8,
+  clipLimit = 3.0
+): void {
+  const tileW = Math.ceil(width / tilesX);
+  const tileH = Math.ceil(height / tilesY);
+
+  // One 0-255 -> 0-255 mapping (histogram-equalized, with the histogram
+  // clipped at `clipLimit` to avoid over-amplifying noise in near-flat
+  // regions) per tile.
+  const maps: Uint8ClampedArray[][] = [];
+  for (let ty = 0; ty < tilesY; ty++) {
+    maps[ty] = [];
+    for (let tx = 0; tx < tilesX; tx++) {
+      const x0 = tx * tileW;
+      const y0 = ty * tileH;
+      const x1 = Math.min(width, x0 + tileW);
+      const y1 = Math.min(height, y0 + tileH);
+      const hist = new Uint32Array(256);
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          hist[gray[y * width + x]]++;
+        }
+      }
+      const pixelCount = (x1 - x0) * (y1 - y0);
+      const clip = Math.max(1, Math.round((clipLimit * pixelCount) / 256));
+      let excess = 0;
+      for (let i = 0; i < 256; i++) {
+        if (hist[i] > clip) {
+          excess += hist[i] - clip;
+          hist[i] = clip;
+        }
+      }
+      const redistribute = excess / 256;
+      const map = new Uint8ClampedArray(256);
+      let cdf = 0;
+      const scale = 255 / pixelCount;
+      for (let i = 0; i < 256; i++) {
+        cdf += hist[i] + redistribute;
+        map[i] = Math.round(cdf * scale);
+      }
+      maps[ty][tx] = map;
+    }
+  }
+
+  // Apply each pixel's mapping as a bilinear blend of its 4 nearest tile
+  // centers, so there's no visible seam at tile edges.
+  const out = new Uint8ClampedArray(gray.length);
+  for (let y = 0; y < height; y++) {
+    const tyF = (y - tileH / 2) / tileH;
+    const ty0Raw = Math.floor(tyF);
+    const wy = tyF - ty0Raw;
+    const ty0 = Math.min(Math.max(ty0Raw, 0), tilesY - 1);
+    const ty1 = Math.min(Math.max(ty0Raw + 1, 0), tilesY - 1);
+    for (let x = 0; x < width; x++) {
+      const txF = (x - tileW / 2) / tileW;
+      const tx0Raw = Math.floor(txF);
+      const wx = txF - tx0Raw;
+      const tx0 = Math.min(Math.max(tx0Raw, 0), tilesX - 1);
+      const tx1 = Math.min(Math.max(tx0Raw + 1, 0), tilesX - 1);
+
+      const v = gray[y * width + x];
+      const v00 = maps[ty0][tx0][v];
+      const v01 = maps[ty0][tx1][v];
+      const v10 = maps[ty1][tx0][v];
+      const v11 = maps[ty1][tx1][v];
+      const top = v00 * (1 - wx) + v01 * wx;
+      const bottom = v10 * (1 - wx) + v11 * wx;
+      out[y * width + x] = Math.round(top * (1 - wy) + bottom * wy);
+    }
+  }
+  out.forEach((v, i) => (gray[i] = v));
+}
+
+/** Grayscale + CLAHE + mild upscale, done in-browser via canvas before
+ * handing the image to Tesseract. See `applyClahe` above for why CLAHE
+ * specifically (replacing a plain global contrast stretch). Resolution
+ * cap raised from the previous 1600px to 2200px: modern phone cameras
+ * commonly produce crops well above 1600px on the long edge, and
+ * downscaling further than necessary throws away real text detail
+ * (small fields like RT/RW are only a handful of pixels tall to begin
+ * with) - this only matters for photos that are already larger than
+ * that, small photos still get upscaled the same as before. */
 async function preprocessForOcr(source: File | Blob): Promise<Blob> {
   const bitmap = await createImageBitmap(source);
-  const scale = Math.min(2, 1600 / Math.max(bitmap.width, bitmap.height)) || 1;
+  const scale = Math.min(2, 2200 / Math.max(bitmap.width, bitmap.height)) || 1;
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
@@ -173,10 +272,17 @@ async function preprocessForOcr(source: File | Blob): Promise<Blob> {
 
   const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const d = imgData.data;
-  for (let i = 0; i < d.length; i += 4) {
-    const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-    const contrasted = Math.min(255, Math.max(0, (gray - 128) * 1.45 + 128));
-    d[i] = d[i + 1] = d[i + 2] = contrasted;
+  const w = canvas.width;
+  const h = canvas.height;
+  const gray = new Uint8ClampedArray(w * h);
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    gray[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  }
+
+  applyClahe(gray, w, h);
+
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    d[i] = d[i + 1] = d[i + 2] = gray[p];
   }
   ctx.putImageData(imgData, 0, 0);
 
