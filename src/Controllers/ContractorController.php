@@ -133,7 +133,10 @@ class ContractorController
     public function update($id)
     {
         try {
-            $this->service->updateContractor($id, $_POST, $_FILES);
+            $result = $this->service->updateContractor($id, $_POST, $_FILES);
+            if (!empty($result['renewed'])) {
+                $_SESSION['success_message'] = "Registrasi berhasil diperpanjang. ID Card baru: {$result['id_card']}";
+            }
             header('Location: index.php?page=contractors');
             exit();
         } catch (Exception $e) {

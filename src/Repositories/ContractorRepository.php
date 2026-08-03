@@ -347,7 +347,10 @@ class ContractorRepository
         // placeholders in the same statement - the previous version of this
         // query did that and would throw "SQLSTATE[HY093]" on every update.
         // Everything below uses positional placeholders only.
-        $stmt = $this->pdo->prepare("UPDATE contractors SET name = ?, ktp_no = ?, company_id = ?, plant_location = ?, registration_date = ?, expiry_date = ?, status = COALESCE(?, status) WHERE id = ?");
+        // id_card is COALESCE'd so a plain edit (no renewal) leaves it
+        // untouched; ContractorService only sets $data['id_card'] when a
+        // renewal actually issues a new one.
+        $stmt = $this->pdo->prepare("UPDATE contractors SET name = ?, ktp_no = ?, company_id = ?, plant_location = ?, registration_date = ?, expiry_date = ?, status = COALESCE(?, status), id_card = COALESCE(?, id_card) WHERE id = ?");
         $stmt->execute([
             $data['name'],
             $data['ktp_no'],
@@ -356,6 +359,7 @@ class ContractorRepository
             $data['registration_date'],
             $data['expiry_date'] ?? null,
             $data['status'] ?? null,
+            $data['id_card'] ?? null,
             $id
         ]);
     }

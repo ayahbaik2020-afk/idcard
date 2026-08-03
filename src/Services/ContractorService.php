@@ -121,12 +121,40 @@ class ContractorService
 
         $data['company_id'] = $this->resolveCompanyId($data['company_id'], $data['new_company_name'] ?? '');
 
+        // Renewal detection: if this contractor was expired and the edit
+        // extends expiry_date to today-or-later, treat it as a renewal -
+        // issue a brand new ID Card number (+ matching QR code), since the
+        // old physical card is being replaced. A plain edit that doesn't
+        // touch an already-expired record keeps its existing ID Card.
+        $oldContractor = $this->contractorRepo->findById($id);
+        $wasExpired = $oldContractor && !empty($oldContractor['expiry_date']) && $oldContractor['expiry_date'] < date('Y-m-d');
+        $isRenewal = $wasExpired && !empty($data['expiry_date']) && $data['expiry_date'] >= date('Y-m-d');
+
+        if ($isRenewal) {
+            $year_prefix = date('y');
+            $max_id = $this->contractorRepo->getMaxIdByYearPrefix($year_prefix);
+            $data['id_card'] = IdCardNumberFormatter::format($year_prefix, $max_id);
+        }
+
         // Update basic info
         $this->contractorRepo->updateContractor($id, $data);
 
+        if ($isRenewal) {
+            if (!empty($oldContractor['qr_code'])) {
+                $oldQrPath = self::UPLOAD_ROOT . 'qrcodes/' . $oldContractor['qr_code'];
+                if (is_file($oldQrPath)) {
+                    unlink($oldQrPath);
+                }
+            }
+            $newQrCode = $this->generateQrCode($data['id_card']);
+            if ($newQrCode) {
+                $this->contractorRepo->updateQrCode($id, $newQrCode);
+            }
+            $this->contractorRepo->logActivity('update', 'contractors', $id, "Registrasi diperpanjang: ID Card {$oldContractor['id_card']} -> {$data['id_card']}");
+        }
+
         // Handle photo upload
         if (isset($files['photo']) && $files['photo']['error'] == 0) {
-            $oldContractor = $this->contractorRepo->findById($id);
             $oldPhotoPath = self::UPLOAD_ROOT . 'photos/' . ($oldContractor['photo'] ?? '');
             if (!empty($oldContractor['photo']) && is_file($oldPhotoPath)) {
                 unlink($oldPhotoPath);
@@ -149,6 +177,8 @@ class ContractorService
         }
 
         $this->contractorRepo->logActivity('update', 'contractors', $id, "Updated contractor: {$data['name']}");
+
+        return $isRenewal ? ['renewed' => true, 'id_card' => $data['id_card']] : ['renewed' => false];
     }
 
     private function applySanctionToContractor($id, $data)

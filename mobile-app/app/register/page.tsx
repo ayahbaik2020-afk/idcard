@@ -17,7 +17,14 @@ const PLANTS = [
 
 const NEW_COMPANY_VALUE = "__new__";
 
-type Step = "company" | "ktp" | "blacklist" | "photo" | "done";
+type Step = "company" | "ktp" | "duplicate" | "blacklist" | "photo" | "done";
+
+type DuplicateInfo = {
+  source: "synced" | "pending";
+  name?: string;
+  id_card?: string;
+  submitted_at?: string;
+};
 
 /** Per-field read-quality status shown to the user right after OCR, so a
  * silently-empty or structurally-implausible field is visible immediately
@@ -108,6 +115,7 @@ export default function RegisterPage() {
   // --- Fitur 3: alamat dari OCR, bisa dikoreksi ---
   const [alamat, setAlamat] = useState("");
   const [ban, setBan] = useState<ActiveBan | null>(null);
+  const [dup, setDup] = useState<DuplicateInfo | null>(null);
   const [checking, setChecking] = useState(false);
   const [faceFile, setFaceFile] = useState<File | null>(null);
   const [facePreview, setFacePreview] = useState<string | null>(null);
@@ -134,8 +142,9 @@ export default function RegisterPage() {
     }
   }
 
-  async function checkBlacklistAndContinue() {
-    if (nik.replace(/\D/g, "").length !== 16) {
+  async function checkDuplicateBlacklistAndContinue() {
+    const cleanNik = nik.replace(/\D/g, "");
+    if (cleanNik.length !== 16) {
       setError("NIK harus 16 digit. Periksa kembali hasil pembacaan KTP.");
       return;
     }
@@ -146,10 +155,32 @@ export default function RegisterPage() {
     setError(null);
     setChecking(true);
     try {
+      // Proteksi NIK/KTP double: cek dulu apakah NIK ini sudah terdaftar
+      // (baik yang sudah tersinkron ke sistem lokal, maupun submission
+      // lain yang masih pending) sebelum boleh lanjut ambil foto & kirim.
+      const dupRes = await fetch("/api/register/check-ktp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ktp_no: cleanNik }),
+      });
+      const dupData = await dupRes.json();
+      if (!dupRes.ok) throw new Error(dupData.error || "Gagal cek duplikat NIK");
+
+      if (dupData.duplicate) {
+        setDup({
+          source: dupData.source,
+          name: dupData.name,
+          id_card: dupData.id_card,
+          submitted_at: dupData.submitted_at,
+        });
+        setStep("duplicate");
+        return;
+      }
+
       const { data, error: qErr } = await supabase
         .from("synced_active_bans")
         .select("*")
-        .eq("ktp_no", nik)
+        .eq("ktp_no", cleanNik)
         .maybeSingle();
       if (qErr) throw qErr;
       setBan((data as ActiveBan) ?? null);
@@ -157,7 +188,7 @@ export default function RegisterPage() {
     } catch (e) {
       console.error(e);
       setError(
-        "Gagal memeriksa status blacklist. Periksa koneksi internet dan coba lagi."
+        "Gagal memeriksa status NIK. Periksa koneksi internet dan coba lagi."
       );
     } finally {
       setChecking(false);
@@ -429,13 +460,63 @@ export default function RegisterPage() {
               )}
               <button
                 disabled={checking}
-                onClick={checkBlacklistAndContinue}
+                onClick={checkDuplicateBlacklistAndContinue}
                 className="rounded-xl bg-blue-600 disabled:bg-slate-700 px-6 py-4 font-medium"
               >
                 {checking ? "Memeriksa..." : "Cek Status & Lanjut"}
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {step === "duplicate" && dup && (
+        <div className="flex flex-col gap-4">
+          <div className="rounded-xl border border-amber-800 bg-amber-950/40 p-4">
+            <p className="font-semibold text-amber-300 mb-2">
+              NIK ini sudah terdaftar
+            </p>
+            <dl className="text-sm space-y-1 text-slate-200">
+              {dup.name && (
+                <div>
+                  <dt className="inline text-slate-400">Nama tercatat: </dt>
+                  <dd className="inline">{dup.name}</dd>
+                </div>
+              )}
+              {dup.source === "synced" && dup.id_card && (
+                <div>
+                  <dt className="inline text-slate-400">ID Card: </dt>
+                  <dd className="inline">{dup.id_card}</dd>
+                </div>
+              )}
+              {dup.source === "pending" && (
+                <div className="text-slate-400">
+                  Ada pengajuan lain untuk NIK ini yang masih menunggu
+                  disinkronkan ke sistem kantor — belum resmi terdaftar,
+                  tapi jangan didaftarkan dua kali.
+                </div>
+              )}
+            </dl>
+          </div>
+          <p className="text-sm text-slate-400">
+            Kalau ini memang orang yang sama, tidak perlu didaftarkan
+            ulang. Kalau menurutmu ini keliru (NIK typo saat OCR, dsb),
+            koreksi NIK di langkah sebelumnya lalu cek ulang.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setStep("ktp")}
+              className="flex-1 rounded-xl bg-slate-800 px-6 py-4 font-medium"
+            >
+              Koreksi NIK
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="flex-1 rounded-xl bg-slate-800 px-6 py-4 font-medium"
+            >
+              Registrasi Orang Lain
+            </button>
+          </div>
         </div>
       )}
 
