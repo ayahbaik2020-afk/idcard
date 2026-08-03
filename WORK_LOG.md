@@ -18,14 +18,15 @@
 > asumsi awal dari diskusi 2026-08-01 — sesuaikan kalau ada
 > pertimbangan lain dari lapangan.
 
-1. **[Akurasi OCR] Alamat masih belum akurat via kamera live** — Nama &
-   NIK sudah benar, tapi Alamat (field multi-baris, paling rentan salah
-   baca) masih sering perlu koreksi manual. Kemungkinan batas akurasi
-   Tesseract untuk teks kecil/padat di font KTP, bukan bug logic —
-   mitigasi yang sudah ada (user wajib review/edit sebelum submit,
-   status per-field, panel raw text) tetap jalan sebagai jaring
-   pengaman. **Perlu foto/device asli dari lapangan untuk tuning lebih
-   lanjut** — tidak bisa diprogress lebih jauh dari sesi remote.
+1. **[Akurasi OCR] Perlu tes ulang di device fisik setelah fix inset
+   crop upload** (commit `04ed0a5`, lihat entri Selesai terkait) —
+   fix ini mengatasi kegagalan TOTAL (0 field terbaca) di jalur
+   upload, sudah divalidasi offline pakai foto asli user, tapi belum
+   dikonfirmasi langsung di HP. Akurasi digit NIK & Alamat untuk foto
+   fisik (dengan pantulan hologram) kemungkinan masih perlu koreksi
+   manual — ini limitasi akurasi yang sudah diketahui, bukan bug baru;
+   mitigasi yang ada (review wajib, status per-field, panel raw text)
+   tetap jalan sebagai jaring pengaman.
 2. **Deploy Vercel (`idcard-brown-delta`) sempat 2 commit tertinggal**
    — **dicek 2026-08-04**: akun Vercel yang terhubung ke sesi kerja ini
    (`ayahbaik's projects`) cuma punya akses ke project `sikara`, TIDAK
@@ -42,6 +43,91 @@
    remote manapun tanpa akses fisik ke perangkat di lapangan.
 
 ## ✅ Selesai
+
+### 2026-08-04 (lanjutan 3) — Sederhanakan parsing OCR: fokus NIK/Nama/Alamat
+- Atas permintaan user: fix crop (di atas) memang bikin foto ter-crop
+  benar, tapi akurasi baca masih meleset (NIK/Nama/Alamat semua salah
+  di foto fisik user). Diminta sederhanakan logika — fokus baca 3
+  field itu saja, buang penanganan field lain.
+- `lib/ocr.ts` ditulis ulang: `parseKtpFields()` (13-label generic
+  parser, dengan `tempatTglLahir`/`jk`/`rtrw`/`keldesa`/`kecamatan`/
+  `agama`/`kawin`/`kerja`/`wn`/`berlaku` yang tidak pernah dipakai UI)
+  diganti `extractNamaAlamat()` yang cuma tahu 3 hal: label NAMA,
+  label ALAMAT, dan "semua label lain" (dipakai murni sebagai penanda
+  BATAS supaya Alamat berhenti nyerap baris, bukan diekstrak/disimpan
+  nilainya). `KtpOcrResult.tempatTglLahir` dihapus dari tipe (dicek:
+  tidak dipakai di `register/page.tsx`).
+- Sekalian ditemukan & diperbaiki bug nyata di `extractNik()`: kalau
+  ada 1 karakter nyasar nempel di digit run (misal ":" salah baca),
+  kode lama langsung ambil 16 digit pertama secara membabi buta ->
+  hasil NIK geser semua + digit terakhir hilang (contoh nyata dari
+  user: OCR baca "1367205180284000", asli "3672051802840001" - persis
+  pola pergeseran ini). Fix: `bestNikWindow()` - kalau digit run lebih
+  dari 16, coba semua jendela 16-digit di dalamnya dan pilih yang
+  cocok struktur NIK asli (`isPlausibleNik`), bukan asal ambil 16
+  pertama.
+- **Catatan jujur/belum selesai**: pendekatan berbasis label (cari
+  teks "NIK"/"NAMA"/"ALAMAT" persis) tetap rentan kalau Tesseract
+  salah baca label itu SENDIRI (mis. "Alamat" terbaca "Aiamat") -
+  field itu akan gagal terbaca sama sekali. Ini bukan regresi baru,
+  sudah jadi limitasi dari sejak awal (kode lama pun pakai regex label
+  yang sama persis) - tapi kalau masih sering terjadi, kemungkinan
+  perlu pendekatan lain (posisi baris relatif, bukan cuma cocok
+  teks label) atau OCR engine/API lain yang lebih akurat dari
+  Tesseract in-browser.
+- Build sukses, commit `6c137c2`, di-push. **Belum dites di device
+  fisik.**
+
+### 2026-08-04 (lanjutan 2) — Root cause SEBENARNYA dari upload gagal total
+- Fix EXIF sebelumnya (`369bb2d`) **tidak berpengaruh** — user tes ulang,
+  hasil identik persis (semua field kosong, foto kepotong rata di kiri).
+- Diminta foto KTP asli dari galeri user untuk debug offline. Dicek:
+  **tidak ada EXIF orientation sama sekali** di foto itu (1085x692, no
+  EXIF) — jadi dugaan EXIF di percobaan sebelumnya salah sasaran.
+- Root cause sebenarnya: rasio foto galeri (1085/692 = 1.568) hampir
+  identik dengan rasio container (3:2 = 1.5) — kartu KTP sudah memenuhi
+  hampir seluruh frame, nyaris tanpa margin. `cropFallbackFile` (jalur
+  upload) memakai `GUIDE_INSET` 6% yang sama dengan jalur kamera live —
+  padahal inset itu dirancang khusus untuk kompensasi margin di sekitar
+  kotak panduan kamera live (yang TIDAK ada saat user pilih foto dari
+  galeri). Diterapkan ke foto galeri yang sudah rapat, inset 6% itu
+  malah memotong ke dalam konten asli kartu di semua sisi — cocok
+  persis dengan pola "NIK"→"IK", "Nama"→"ma", dst.
+- Fix: `computeCoverCrop()` sekarang terima parameter `inset` eksplisit
+  — jalur live-camera (`capture()`) tetap pakai `GUIDE_INSET` (6%),
+  jalur upload (`cropFallbackFile`) pakai `inset=0` (cuma potong sesuai
+  rasio 3:2, tanpa mengecilkan lagi ke dalam).
+- Divalidasi offline pakai foto KTP asli user + pipeline OCR yang
+  sama persis (grayscale/contrast/upscale dari `lib/ocr.ts` + eng +
+  PSM SINGLE_BLOCK): semua label field & NIK sekarang terbaca (dari
+  sebelumnya 0%), meski akurasi digit NIK & Alamat masih belum
+  sempurna untuk foto asli ini (foto fisik dengan pantulan hologram
+  lebih berat dari contoh sebelumnya — level ini sama dengan limitasi
+  akurasi yang sudah dicatat, bukan regresi baru).
+- Build sukses, commit `04ed0a5`, di-push. **Belum dites di device
+  fisik oleh user.**
+
+### 2026-08-04 (lanjutan) — Bug EXIF orientation di jalur upload-file (DUGAAN SALAH — lihat entri di atas)
+- User tes ulang jalur upload-file (setelah fix `cropFallbackFile` di
+  atas) — hasilnya malah **semua field kosong total** (bukan cuma
+  Alamat), dengan foto preview yang kepotong rata di sisi kiri di
+  setiap baris teks.
+- Root cause: `createImageBitmap()` (dipakai baik di
+  `cropFallbackFile` maupun `preprocessForOcr`) **tidak otomatis
+  membaca tag orientasi EXIF** dari foto — beda dengan `<img>` yang
+  otomatis rotate. Foto HP yang secara sensor tersimpan "miring" (tag
+  EXIF bilang harus dirotate saat ditampilkan) jadi di-crop pakai
+  lebar/tinggi mentah (belum dirotate) → area crop salah, cocok
+  persis dengan gejala "kepotong rata di kiri" meski preview `<img>`
+  terlihat normal (karena `<img>` respect EXIF, `createImageBitmap`
+  tidak).
+- Fix: `createImageBitmap(file, { imageOrientation: "from-image" })`
+  di `cropFallbackFile`. (Panggilan `createImageBitmap` kedua di
+  `preprocessForOcr`/`lib/ocr.ts` aman tanpa perlu diubah — inputnya
+  di titik itu sudah berupa hasil gambar dari canvas, yang tidak
+  pernah membawa metadata EXIF.)
+- Build sukses, commit `369bb2d`, di-push. **Belum dites di device
+  fisik.**
 
 ### 2026-08-04 — Investigasi & perbaikan lanjutan (mobile app + data)
 
