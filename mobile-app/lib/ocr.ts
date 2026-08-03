@@ -16,15 +16,19 @@ function digitsOnly(s: string): string {
  * github.com/YukaLangbuana/KTP-OCR which normalizes "?" -> "7"). Applied
  * ONLY to candidate strings already identified as "this is probably the
  * NIK", not to the whole document, so it can't corrupt Nama/Alamat text
- * where those same letters are legitimate. */
+ * where those same letters are legitimate.
+ *
+ * b/B -> 6 (not 8): confirmed against a real physical-device photo where
+ * Tesseract read the digit "6" as "b" ("3b72051802840001" vs the real
+ * "3672051802840001"). There's no real-world evidence for a b/8
+ * confusion, so that guess was replaced rather than kept alongside it. */
 function normalizeOcrDigits(s: string): string {
   return s
     .replace(/[oOQD]/g, "0")
     .replace(/[iIlL|!]/g, "1")
     .replace(/[zZ]/g, "2")
     .replace(/[sS]/g, "5")
-    .replace(/[bB]/g, "8")
-    .replace(/[gG]/g, "6")
+    .replace(/[bBgG]/g, "6")
     .replace(/\?/g, "7");
 }
 
@@ -198,6 +202,20 @@ function cleanExtractedValue(s: string): string {
     .trim();
 }
 
+/** Counts real alphanumeric characters in a string, ignoring whitespace
+ * and symbol noise. Used to tell "this line is actual card text" apart
+ * from "this line is hologram/guilloche texture noise that Tesseract
+ * hallucinated into a stray letter or two" - confirmed necessary against
+ * a real device photo where Nama's value came back as just "i" (a single
+ * noise character) and got accepted as if it were a real name. A field
+ * that fails this check is left BLANK rather than filled with garbage,
+ * so the user is prompted to fill it in manually instead of unknowingly
+ * submitting noise as real data. */
+function alnumCount(s: string): number {
+  return (s.match(/[A-Za-z0-9]/g) ?? []).length;
+}
+const MIN_REAL_CONTENT_CHARS = 2;
+
 /** Nama and Alamat only. Nama is a single line (label + value, or value on
  * the next line if OCR dropped the ":"). Alamat is the only multi-line
  * field kept: it keeps appending lines until the next recognized label of
@@ -235,15 +253,23 @@ function extractNamaAlamat(lines: string[]): { nama: string; alamat: string } {
 
     // Label-less line: either the value for a "Nama" label that had
     // nothing after it (":" dropped by OCR, value pushed to its own
-    // line), or a continuation line for Alamat.
+    // line), or a continuation line for Alamat. Noise-only lines (stray
+    // symbols/single letters from the hologram texture) are skipped
+    // rather than appended, so they can't glue garbage onto a
+    // continuation field - see alnumCount above.
     if (awaitingNama) {
-      nama = line;
+      if (alnumCount(line) >= MIN_REAL_CONTENT_CHARS) nama = line;
       awaitingNama = false;
-    } else if (collectingAlamat) {
+    } else if (collectingAlamat && alnumCount(line) >= MIN_REAL_CONTENT_CHARS) {
       alamat = alamat ? `${alamat} ${line}` : line;
     }
   }
-  return { nama: cleanExtractedValue(nama), alamat: cleanExtractedValue(alamat) };
+  const cleanedNama = cleanExtractedValue(nama);
+  const cleanedAlamat = cleanExtractedValue(alamat);
+  return {
+    nama: alnumCount(cleanedNama) >= MIN_REAL_CONTENT_CHARS ? cleanedNama : "",
+    alamat: cleanedAlamat,
+  };
 }
 
 /** Grayscale + adaptive contrast stretch + mild upscale, done in-browser

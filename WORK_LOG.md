@@ -18,50 +18,16 @@
 > asumsi awal dari diskusi 2026-08-01 — sesuaikan kalau ada
 > pertimbangan lain dari lapangan.
 
-1. **[Akurasi OCR] Bukti tes fisik PERTAMA masuk 2026-08-05 — 2 bug
-   konkret ditemukan, fokus perbaikan HANYA NIK/Nama/Alamat (sesuai
-   arahan user).** User kirim raw OCR text asli dari HP fisik (bukan
-   simulasi/screenshot lagi). Hasil mentahnya:
-   ```
-   NIK : 3b72051802840001        (asli: 3672051802840001)
-   Nama i —— =                   (asli: MAMAN)
-   Alama : PERUM GRAND SUTERA CILEGON
-   a  —— — —
-   KelDesa -iEBAKDENOK —— — —
-   ```
-   Direproduksi offline lewat Node.js langsung terhadap fungsi
-   `extractNik`/`extractNamaAlamat` yang ter-commit (`df4f402`), BUKAN
-   tebakan — 2 bug nyata terkonfirmasi:
-   - **NIK salah 1 digit** (`3872051802840001` vs asli
-     `3672051802840001`): Tesseract baca digit "6" sebagai huruf "b".
-     `normalizeOcrDigits()` memetakan `b/B` → `8`, padahal di kasus
-     nyata ini seharusnya → `6`. Asumsi lama (`b`→`8`) tidak pernah
-     punya bukti nyata, cuma dugaan visual; bukti yang ada sekarang
-     justru menunjukkan sebaliknya.
-   - **Nama jadi "i"** (harusnya kosong, bukan "MAMAN" juga karena
-     OCR gagal total baca nilainya di foto ini): baris mentahnya
-     "Nama i —— =" - label "Nama" kebaca benar, tapi isinya cuma
-     noise ("i" + karakter simbol dari tekstur hologram). Kode
-     sekarang tidak punya filter "apakah hasil ini teks asli atau
-     cuma noise" - satu huruf nyasar pun langsung dianggap sebagai
-     nilai valid dan mengisi form, berpotensi menyesatkan user yang
-     tidak teliti mengecek ulang.
-   - **Alamat kemasukan noise**: "PERUM GRAND SUTERA CILEGON a" -
-     baris kosong "a —— — —" (murni noise dari tekstur kartu) ikut
-     nyambung ke Alamat sebelum baris "KelDesa..." dikenali sebagai
-     batas. Root cause sama dengan Nama: tidak ada filter noise vs
-     konten asli untuk baris lanjutan Alamat.
-   - Nama/NIK/Alamat lain di raw text yang levelnya "cukup terbaca"
-     (Tempat/Tgl Lahir "SUBANG. 1802-1984", Kecamatan "CITANGEKE") -
-     tidak relevan diperbaiki, field itu memang sengaja tidak dipakai
-     app ini (sesuai keputusan 2026-08-04 fokus 3 field saja).
-   - **Rencana perbaikan** (dikerjakan setelah entri log ini): (1)
-     `normalizeOcrDigits`: `b/B` → `6` bukan `8`. (2) Tambah filter
-     "cukup huruf/angka asli" (bukan cuma simbol noise) sebelum
-     menerima nilai Nama final ATAU baris lanjutan Alamat - kalau
-     gagal filter, biarkan kosong (field jadi "tidak terbaca", bukan
-     terisi sampah) supaya user pasti sadar harus isi manual, bukan
-     kecolongan submit data salah.
+1. **[Akurasi OCR] Perlu 1 putaran tes fisik lagi untuk konfirmasi
+   akhir** (lihat entri Selesai 2026-08-05 "lanjutan 2" untuk detail
+   fix-nya). NIK & Alamat sudah dikonfirmasi cocok 100% terhadap raw
+   OCR text fisik yang dikirim user (bukan lagi simulasi/asumsi).
+   Yang masih perlu diverifikasi user: (a) apakah Nama sekarang
+   terbaca dengan foto/pencahayaan yang lebih baik (kali ini sengaja
+   dibiarkan kosong karena datanya sendiri tidak terbaca sama sekali
+   di foto itu, bukan bug), (b) coba beberapa KTP/kondisi cahaya lain
+   untuk lihat apakah fix `b→6` di NIK tidak menimbulkan masalah baru
+   di kasus lain.
 2. **Deploy Vercel (`idcard-brown-delta`) sempat 2 commit tertinggal**
    — **dicek 2026-08-04**: akun Vercel yang terhubung ke sesi kerja ini
    (`ayahbaik's projects`) cuma punya akses ke project `sikara`, TIDAK
@@ -78,6 +44,46 @@
    remote manapun tanpa akses fisik ke perangkat di lapangan.
 
 ## ✅ Selesai
+
+### 2026-08-05 (lanjutan 2) — Fix 2 bug nyata dari tes fisik pertama (NIK b→6, filter noise Nama/Alamat)
+- Lanjutan langsung dari entri "Belum" #1 di atas (bukti tes fisik
+  pertama). Kedua bug direproduksi dulu offline lewat Node.js
+  langsung terhadap kode ter-commit sebelum diubah (bukan tebakan):
+  `extractNik` menghasilkan `3872051802840001` (real device text),
+  `extractNamaAlamat` menghasilkan `nama:"i"`, `alamat:"...CILEGON a"`
+  — persis sesuai dugaan di entri "Belum".
+- **Fix 1 (NIK)**: `normalizeOcrDigits()` — mapping `b/B` diubah dari
+  `→8` jadi `→6`, karena bukti nyata (bukan cuma dua-duanya
+  dipertahankan sebagai kemungkinan) menunjukkan Tesseract di kartu
+  fisik ini baca digit "6" sebagai "b" pada posisi kode kabupaten NIK.
+- **Fix 2 (Nama/Alamat)**: helper baru `alnumCount()` + konstanta
+  `MIN_REAL_CONTENT_CHARS=2` — nilai Nama final HARUS punya >=2
+  karakter alfanumerik asli (setelah `cleanExtractedValue`) untuk
+  diterima, kalau tidak (mis. cuma "i" dari noise) field dibiarkan
+  KOSONG, bukan diisi sampah. Baris lanjutan Alamat yang murni noise
+  (mis. "a —— — —") sekarang di-skip sebelum sempat disambung ke
+  alamat, bukan cuma dibersihkan setelahnya (yang sebelumnya
+  meninggalkan sisa huruf nyasar seperti "...CILEGON a").
+- Diverifikasi 3 lapis: (1) `npm run build` + `npx eslint` bersih;
+  (2) fungsi diekstrak & dijalankan ulang lewat Node.js langsung
+  terhadap raw text fisik yang sama persis dari user — hasil sekarang
+  `nik:"3672051802840001"` (BENAR, cocok KTP asli), `nama:""` (kosong,
+  bukan lagi "i" yang menyesatkan), `alamat:"PERUM GRAND SUTERA
+  CILEGON"` (bersih, tanpa noise nyangkut); (3) regression-check
+  terhadap sampel foto galeri yang sudah bagus sebelumnya (dari sesi
+  2026-08-01) — hasil tidak berubah (`nama:"MAMAN"`, alamat lengkap
+  4 baris tersambung benar), jadi filter noise ini tidak menghapus
+  konten asli yang pendek/valid.
+- **Catatan jujur**: NIK & Alamat sekarang match 100% dengan bukti
+  fisik yang dikirim user — ini levelnya lebih kuat dari sesi-sesi
+  OCR sebelumnya (bukan cuma "lolos build", tapi cocok terhadap raw
+  OCR text asli dari HP). Nama sengaja dibiarkan kosong (bukan "MAMAN"
+  yang benar) karena foto fisik user kali ini memang gagal total baca
+  nilai Nama-nya (bukan regresi kode - datanya sendiri tidak
+  terbaca) - user tetap perlu isi manual untuk kasus foto seperti ini.
+  **Masih perlu 1 putaran tes fisik lagi** untuk konfirmasi akhir
+  (foto baru, cek apakah Nama kali ini terbaca dengan pencahayaan/
+  sudut berbeda) sebelum item ini ditutup total.
 
 ### 2026-08-05 (lanjutan) — Fuzzy label matching untuk Nama/Alamat + perbaiki sesi terputus
 - Diminta user: "baca WORK_LOG dan lanjutkan pekerjaan ini" (disertai
