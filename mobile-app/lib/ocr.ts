@@ -1,10 +1,24 @@
-import { createWorker, PSM } from "tesseract.js";
+import type {
+  OcrResult,
+  OcrResultItem,
+  OcrRuntimeParamsInput
+} from "@paddleocr/paddleocr-js";
 
 export type KtpOcrResult = {
   nik: string;
   nama: string;
   alamat: string;
   rawText: string;
+};
+
+/** Minimal structural view of the PaddleOCR engine that scanKtp uses. The
+ * full PaddleOCR class is only loaded via dynamic import() at call time (see
+ * getEngine) so that this module never pulls the heavy onnxruntime/opencv
+ * wasm pipeline into the server-side bundle - it only ever runs in the
+ * browser, inside a "use client" page. */
+type OcrEngine = {
+  predict(input: unknown, params?: OcrRuntimeParamsInput): Promise<OcrResult[]>;
+  dispose(): Promise<void>;
 };
 
 function digitsOnly(s: string): string {
@@ -239,7 +253,7 @@ function cleanExtractedValue(s: string): string {
 
 /** Counts real alphanumeric characters in a string, ignoring whitespace
  * and symbol noise. Used to tell "this line is actual card text" apart
- * from "this line is hologram/guilloche texture noise that Tesseract
+ * from "this line is hologram/guilloche texture noise that the OCR engine
  * hallucinated into a stray letter or two" - confirmed necessary against
  * a real device photo where Nama's value came back as just "i" (a single
  * noise character) and got accepted as if it were a real name. A field
@@ -307,154 +321,175 @@ function extractNamaAlamat(lines: string[]): { nama: string; alamat: string } {
   };
 }
 
-/** CLAHE (Contrast Limited Adaptive Histogram Equalization) applied
- * in-place to a grayscale pixel buffer, tile-by-tile with bilinear
- * interpolation across tile boundaries (standard algorithm, see
- * Zuiderveld 1994 / the same technique OpenCV's cv2.CLAHE implements). */
-function applyClahe(
-  gray: Uint8ClampedArray,
-  width: number,
-  height: number,
-  tilesX = 8,
-  tilesY = 8,
-  clipLimit = 3.0
-): void {
-  const tileW = Math.ceil(width / tilesX);
-  const tileH = Math.ceil(height / tilesY);
+// --- PaddleOCR engine lifecycle ---
 
-  // One 0-255 -> 0-255 mapping (histogram-equalized, with the histogram
-  // clipped at `clipLimit` to avoid over-amplifying noise in near-flat
-  // regions) per tile.
-  const maps: Uint8ClampedArray[][] = [];
-  for (let ty = 0; ty < tilesY; ty++) {
-    maps[ty] = [];
-    for (let tx = 0; tx < tilesX; tx++) {
-      const x0 = tx * tileW;
-      const y0 = ty * tileH;
-      const x1 = Math.min(width, x0 + tileW);
-      const y1 = Math.min(height, y0 + tileH);
-      const hist = new Uint32Array(256);
-      for (let y = y0; y < y1; y++) {
-        for (let x = x0; x < x1; x++) {
-          hist[gray[y * width + x]]++;
-        }
-      }
-      const pixelCount = (x1 - x0) * (y1 - y0);
-      const clip = Math.max(1, Math.round((clipLimit * pixelCount) / 256));
-      let excess = 0;
-      for (let i = 0; i < 256; i++) {
-        if (hist[i] > clip) {
-          excess += hist[i] - clip;
-          hist[i] = clip;
-        }
-      }
-      const redistribute = excess / 256;
-      const map = new Uint8ClampedArray(256);
-      let cdf = 0;
-      const scale = 255 / pixelCount;
-      for (let i = 0; i < 256; i++) {
-        cdf += hist[i] + redistribute;
-        map[i] = Math.round(cdf * scale);
-      }
-      maps[ty][tx] = map;
-    }
-  }
+/** PP-OCRv6_tiny (det ~1.7MB + rec ~4.3MB) is the smallest officially
+ * published PP-OCRv6 pair and the one that supports the Latin script set
+ * that Indonesian (lang "id") belongs to. Selected by explicit model name
+ * because the SDK's `lang`+`ocrVersion: "PP-OCRv6"` shortcut always maps
+ * to the larger PP-OCRv6_small pair; tiny must be requested by name (the
+ * SDK README documents exactly this). Swap these two names for the
+ * `_small_` variants if physical-device accuracy ever turns out to need
+ * the bigger models. */
+const TEXT_DETECTION_MODEL = "PP-OCRv6_tiny_det";
+const TEXT_RECOGNITION_MODEL = "PP-OCRv6_tiny_rec";
 
-  // Apply each pixel's mapping as a bilinear blend of its 4 nearest tile
-  // centers, so there's no visible seam at tile edges.
-  const out = new Uint8ClampedArray(gray.length);
-  for (let y = 0; y < height; y++) {
-    const tyF = (y - tileH / 2) / tileH;
-    const ty0Raw = Math.floor(tyF);
-    const wy = tyF - ty0Raw;
-    const ty0 = Math.min(Math.max(ty0Raw, 0), tilesY - 1);
-    const ty1 = Math.min(Math.max(ty0Raw + 1, 0), tilesY - 1);
-    for (let x = 0; x < width; x++) {
-      const txF = (x - tileW / 2) / tileW;
-      const tx0Raw = Math.floor(txF);
-      const wx = txF - tx0Raw;
-      const tx0 = Math.min(Math.max(tx0Raw, 0), tilesX - 1);
-      const tx1 = Math.min(Math.max(tx0Raw + 1, 0), tilesX - 1);
+/** onnxruntime-web must be told where its .wasm files live (it does not
+ * bundle them). The jsdelivr CDN path is pinned to the exact installed
+ * onnxruntime-web version so the wasm binary and the JS that loads it
+ * can never drift apart. */
+const ORT_WASM_PATHS =
+  "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/";
 
-      const v = gray[y * width + x];
-      const v00 = maps[ty0][tx0][v];
-      const v01 = maps[ty0][tx1][v];
-      const v10 = maps[ty1][tx0][v];
-      const v11 = maps[ty1][tx1][v];
-      const top = v00 * (1 - wx) + v01 * wx;
-      const bottom = v10 * (1 - wx) + v11 * wx;
-      out[y * width + x] = Math.round(top * (1 - wy) + bottom * wy);
-    }
-  }
-  out.forEach((v, i) => (gray[i] = v));
+/** Threaded wasm needs crossOriginIsolated (SharedArrayBuffer). Without it
+ * the runtime silently falls back to a single thread, so only request more
+ * threads when the page is actually isolated - mirrors what the official
+ * paddleocr-js demo does. */
+function getOrtThreadCount(): number {
+  if (typeof self === "undefined" || !self.crossOriginIsolated) return 1;
+  return Math.min(4, Math.max(1, (navigator.hardwareConcurrency || 2) - 1));
 }
 
-/** Grayscale + CLAHE + mild upscale, done in-browser via canvas before
- * handing the image to Tesseract. CLAHE (not a global contrast stretch)
- * is used because the printed hologram/guilloche background on a KTP
- * varies in brightness across the card, so a single global contrast
- * curve leaves some regions too dark and others blown out. That was
- * confirmed (2026-08, side-by-side offline test against a real user KTP
- * photo) to be the root cause of OCR failures: the global stretch made
- * Tesseract misread the "ALAMAT" label itself as "Aiamat" (silently
- * dropping the whole address) and drop the Nama value entirely. CLAHE
- * equalizes contrast *locally* per tile instead, and the same test read
- * Nama ("MAMAN"), Alamat, and NIK correctly. NOTE: a later session
- * reverted this to an Otsu-based global stretch (commit a796a93) without
- * physical-test evidence; the first real device test under that revert
- * produced an empty Nama again ("Nama i —— ="), the exact symptom CLAHE
- * fixed, so this restores CLAHE. Resolution cap 2200px: modern phone
- * cameras commonly produce crops well above 1600px on the long edge, and
- * downscaling further than necessary throws away real text detail (small
- * fields like RT/RW are only a handful of pixels tall to begin with). */
-async function preprocessForOcr(source: File | Blob): Promise<Blob> {
-  const bitmap = await createImageBitmap(source);
-  const scale = Math.min(2, 2200 / Math.max(bitmap.width, bitmap.height)) || 1;
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return source;
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+/** Models (~6MB total) are downloaded and compiled into ONNX sessions on
+ * the first call and then cached for the lifetime of the page, so a
+ * "Ambil ulang foto" / second registration reuses them instead of
+ * re-downloading. On failure the cache is cleared so the next call can
+ * retry. */
+let enginePromise: Promise<OcrEngine> | null = null;
 
-  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const d = imgData.data;
-  const w = canvas.width;
-  const h = canvas.height;
-  const gray = new Uint8ClampedArray(w * h);
-  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-    gray[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-  }
-
-  applyClahe(gray, w, h);
-
-  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-    d[i] = d[i + 1] = d[i + 2] = gray[p];
-  }
-  ctx.putImageData(imgData, 0, 0);
-
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => resolve(blob ?? source), "image/jpeg", 0.92);
+async function createEngine(): Promise<OcrEngine> {
+  const { PaddleOCR } = await import("@paddleocr/paddleocr-js");
+  return PaddleOCR.create({
+    worker: false,
+    textDetectionModelName: TEXT_DETECTION_MODEL,
+    textRecognitionModelName: TEXT_RECOGNITION_MODEL,
+    ortOptions: {
+      backend: "auto",
+      wasmPaths: ORT_WASM_PATHS,
+      numThreads: getOrtThreadCount(),
+      simd: true
+    }
   });
 }
 
-async function recognizeOnce(
-  worker: Awaited<ReturnType<typeof createWorker>>,
-  image: Blob | string,
-  psm: PSM
-): Promise<KtpOcrResult> {
-  await worker.setParameters({ tessedit_pageseg_mode: psm });
-  const {
-    data: { text },
-  } = await worker.recognize(image);
+async function getEngine(): Promise<OcrEngine> {
+  if (!enginePromise) {
+    enginePromise = createEngine().catch((err) => {
+      enginePromise = null;
+      throw err;
+    });
+  }
+  return enginePromise;
+}
 
-  const lines = text
-    .split("\n")
-    .map((l) => l.trim())
+// --- PaddleOCR result -> ordered text lines ---
+
+/** PaddleOCR's detection boxes are NOT returned in reading order. Each
+ * box becomes one line of text, so before extraction we sort boxes by
+ * their vertical position and merge boxes that sit on the same visual row
+ * (e.g. the "NIK :" label and the digits next to it are often two
+ * separate boxes) into a single line in left-to-right order. This mirrors
+ * the reading-order guarantee Tesseract's page segmentation gave the
+ * extraction logic. */
+function itemsToLines(items: OcrResultItem[]): string[] {
+  if (!items.length) return [];
+
+  const boxes = items.map((item) => {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const [x, y] of item.poly) {
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+    return {
+      item,
+      centerX: (minX + maxX) / 2,
+      centerY: (minY + maxY) / 2,
+      height: maxY - minY
+    };
+  });
+
+  // Row-merge tolerance: half the median box height. Rows on a KTP are
+  // evenly spaced and roughly the same height, so boxes whose vertical
+  // centers are within this band belong to the same text row.
+  const heights = boxes.map((b) => b.height).sort((a, b) => a - b);
+  const medianHeight = heights[Math.floor(heights.length / 2)] || 1;
+  const tolerance = Math.max(2, medianHeight * 0.5);
+
+  boxes.sort((a, b) => a.centerY - b.centerY || a.centerX - b.centerX);
+
+  const rows: Array<{ boxes: typeof boxes; meanY: number; count: number }> = [];
+  for (const box of boxes) {
+    const last = rows[rows.length - 1];
+    if (last && Math.abs(box.centerY - last.meanY) <= tolerance) {
+      last.boxes.push(box);
+      last.meanY =
+        (last.meanY * last.count + box.centerY) / (last.count + 1);
+      last.count += 1;
+    } else {
+      rows.push({ boxes: [box], meanY: box.centerY, count: 1 });
+    }
+  }
+
+  return rows
+    .map((row) =>
+      row.boxes
+        .sort((a, b) => a.centerX - b.centerX)
+        .map((b) => b.item.text.trim())
+        .filter(Boolean)
+        .join(" ")
+    )
     .filter(Boolean);
+}
 
-  const { nama, alamat } = extractNamaAlamat(lines);
-  return { nik: extractNik(text, lines), nama, alamat, rawText: text };
+const DEFAULT_PREDICT_PARAMS: OcrRuntimeParamsInput = {
+  // Default pipeline score_thresh is 0.0 (keep everything); a small floor
+  // here drops the lowest-confidence hallucinated lines, same trade-off the
+  // official demo makes.
+  textRecScoreThresh: 0.1
+};
+
+/** Second pass only runs when a field is still missing: a lower box
+ * threshold recovers text boxes SINGLE-detection merged into noise or
+ * dropped entirely (PaddleOCR is far more reliable than Tesseract here,
+ * but a second cheap pass is worth it against handing the user a form
+ * with fields silently blank - only runs once per registration). */
+const RECOVERY_PREDICT_PARAMS: OcrRuntimeParamsInput = {
+  textDetBoxThresh: 0.3,
+  textRecScoreThresh: 0.05
+};
+
+async function recognizeOnce(
+  engine: OcrEngine,
+  image: Blob,
+  params: OcrRuntimeParamsInput,
+  onProgress?: (pct: number) => void,
+  from?: number,
+  to?: number
+): Promise<KtpOcrResult> {
+  // PaddleOCR's predict() has no progress callback; while inference runs we
+  // drive a smooth estimate between the two bounds so the UI bar doesn't
+  // appear frozen, then snap to 100 when done.
+  let current = from ?? 0;
+  const step = Math.max(1, Math.round(((to ?? 100) - current) / 20));
+  const timer = setInterval(() => {
+    current = Math.min(to ?? 100, current + step);
+    onProgress?.(current);
+  }, 150);
+
+  try {
+    const [result] = await engine.predict(image, params);
+    const lines = itemsToLines(result.items);
+    const text = lines.join("\n");
+    const { nama, alamat } = extractNamaAlamat(lines);
+    return { nik: extractNik(text, lines), nama, alamat, rawText: text };
+  } finally {
+    clearInterval(timer);
+  }
 }
 
 function fieldsFound(r: KtpOcrResult): number {
@@ -465,67 +500,52 @@ export async function scanKtp(
   imageSource: File | Blob | string,
   onProgress?: (pct: number) => void
 ): Promise<KtpOcrResult> {
-  // Language model: "eng" is used instead of "ind" here even though the
-  // card is Indonesian. Tested directly against real KTP photos: the
-  // "ind" traineddata reads the field VALUES (name/address/etc, printed
-  // over the hologram/guilloche background) as near-random noise, while
-  // "eng" reads the exact same image close to perfectly (confirmed via
-  // side-by-side testing - "ind" mangled "MAMAN" into "Sa ES" and a
-  // clean address into garbage, "eng" read both correctly). The card
-  // text is plain Latin characters/digits with no Indonesian-specific
-  // diacritics, so "eng"'s more mature/accurate LSTM model reads it
-  // better than the lower-quality "ind" model despite the language
-  // mismatch.
-  const worker = await createWorker("eng", 1, {
-    logger: (m) => {
-      if (m.status === "recognizing text" && onProgress) {
-        onProgress(Math.round(m.progress * 55));
-      }
-    },
-  });
+  onProgress?.(5);
+  const engine = await getEngine();
+  onProgress?.(30);
 
-  try {
-    const preprocessed =
-      typeof imageSource === "string"
-        ? imageSource
-        : await preprocessForOcr(imageSource);
+  // PaddleOCR's predict() accepts Blob/File/ImageBitmap/canvas/img - but
+  // not a URL string, so the string form (used by tests) becomes a Blob.
+  const image: Blob =
+    typeof imageSource === "string"
+      ? await (await fetch(imageSource)).blob()
+      : imageSource;
 
-    // Pass 1: SINGLE_BLOCK - treats the card as one uniform block of text
-    // rather than auto-detecting a page layout. Best result in testing
-    // for this dense, multi-field KTP layout when the photo is clean.
-    const first = await recognizeOnce(worker, preprocessed, PSM.SINGLE_BLOCK);
-    if (fieldsFound(first) === 3) {
-      onProgress?.(100);
-      return first;
-    }
-
-    // Pass 2: only when pass 1 missed at least one of NIK/Nama/Alamat.
-    // SPARSE_TEXT treats the image as scattered blocks of text instead of
-    // one uniform block - a different segmentation strategy that can
-    // recover a line SINGLE_BLOCK merged into noise or dropped entirely
-    // (seen in practice: NIK/Alamat coming back completely blank from
-    // pass 1 despite a well-cropped photo). Costs a second OCR run, but
-    // this only runs once per registration, so the extra ~1-2s is worth
-    // it against handing the user a form with fields silently blank.
-    if (onProgress) onProgress(55);
-    const second = await recognizeOnce(worker, preprocessed, PSM.SPARSE_TEXT);
+  const first = await recognizeOnce(
+    engine,
+    image,
+    DEFAULT_PREDICT_PARAMS,
+    onProgress,
+    30,
+    60
+  );
+  if (fieldsFound(first) === 3) {
     onProgress?.(100);
-
-    if (fieldsFound(second) <= fieldsFound(first)) return first;
-
-    // Field-level merge: take whichever pass actually read each field,
-    // so a pass that's better overall can't blank out a field the other
-    // pass got right.
-    return {
-      nik: second.nik || first.nik,
-      nama: second.nama || first.nama,
-      alamat: second.alamat || first.alamat,
-      rawText:
-        second.rawText.length > first.rawText.length
-          ? second.rawText
-          : first.rawText,
-    };
-  } finally {
-    await worker.terminate();
+    return first;
   }
+
+  const second = await recognizeOnce(
+    engine,
+    image,
+    RECOVERY_PREDICT_PARAMS,
+    onProgress,
+    60,
+    95
+  );
+  onProgress?.(100);
+
+  if (fieldsFound(second) <= fieldsFound(first)) return first;
+
+  // Field-level merge: take whichever pass actually read each field, so a
+  // pass that's better overall can't blank out a field the other pass got
+  // right.
+  return {
+    nik: second.nik || first.nik,
+    nama: second.nama || first.nama,
+    alamat: second.alamat || first.alamat,
+    rawText:
+      second.rawText.length > first.rawText.length
+        ? second.rawText
+        : first.rawText
+  };
 }

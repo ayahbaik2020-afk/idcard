@@ -38,3 +38,7 @@ Thumbs.db
 
 # PHPUnit cache (see phpunit.xml / tests/)
 /.phpunit.cache/
+
+# Local clone of PaddleOCR (evaluated as a potential Tesseract.js
+# replacement, kept for reference only - not part of the app build)
+/PaddleOCR/
