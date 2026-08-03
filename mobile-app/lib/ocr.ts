@@ -71,7 +71,14 @@ const DIGIT_LIKE_RUN = /[\dOoQDiIlL|!zZsSbBgG?]{14,26}/g;
  * know we're looking at the right line), then widened card-wide only as
  * a last resort - see below. */
 function extractNik(text: string, lines: string[]): string {
-  const nikLineIdx = lines.findIndex((l) => /\bNIK\b/i.test(l));
+  let nikLineIdx = lines.findIndex((l) => /\bNIK\b/i.test(l));
+  // OCR frequently mangles the "NIK" label itself (seen in practice as
+  // "ik" - the leading N lost to glare/noise). Fall back to the same
+  // fuzzy label matching used for Nama/Alamat so the right line is still
+  // located; the extracted candidate still has to pass isPlausibleNik.
+  if (nikLineIdx === -1) {
+    nikLineIdx = lines.findIndex((l) => findFuzzyLabel(l, "NIK", 1) !== null);
+  }
   if (nikLineIdx !== -1) {
     const nearby = `${lines[nikLineIdx]} ${lines[nikLineIdx + 1] ?? ""}`;
     const runs = nearby.match(DIGIT_LIKE_RUN) ?? [];
@@ -184,6 +191,34 @@ function stripFuzzyLabel(line: string, match: RegExpMatchArray): string {
 const OTHER_LABEL =
   /TEMPAT\s*\/?\s*TG?L\.?\s*LAHIR|JENIS\s*KELAMIN|\bRT\s*\/?\s*RW\b|KEL\s*\/?\s*DESA|KECAMATAN|\bAGAMA\b|STATUS\s*PERKAWINAN|PEKERJAAN|KEWARGANEGARAAN|BERLAKU/i;
 
+/** Compact (separator-free) versions of the boundary labels above, for
+ * fuzzy matching when OCR mangles a label itself (same idea as the
+ * Nama/Alamat fuzzy labels). The compact forms matter because e.g. "RT/RW"
+ * or "Kel/Desa" split across separators won't match a single fuzzy word;
+ * comparing against the de-separated form catches both. The two that sit
+ * in the middle of the Alamat block (RT/RW and Kel/Desa) are the critical
+ * ones - a misread there makes Alamat swallow every line below it, seen in
+ * practice as "RIAW 020/006" (should be RT/RW) and "KeiDesa" (should be
+ * Kel/Desa) running straight into the address. */
+function isBoundaryLine(line: string): boolean {
+  if (OTHER_LABEL.test(line) || /\bNIK\b/i.test(line)) return true;
+  for (const [target, maxDist] of [
+    ["RTRW", 2],
+    ["KELDESA", 2],
+    ["KECAMATAN", 2],
+    ["TEMPATLAHIR", 2],
+    ["JENISKELAMIN", 2],
+    ["STATUSPERKAWINAN", 2],
+    ["KEWARGANEGARAAN", 2],
+    ["PEKERJAAN", 2],
+    ["AGAMA", 2],
+    ["BERLAKU", 2],
+  ] as Array<[string, number]>) {
+    if (findFuzzyLabel(line, target, maxDist)) return true;
+  }
+  return false;
+}
+
 /** OCR of the card's hologram/guilloche background texture frequently
  * shows up as stray symbol noise glued onto real text (seen in practice:
  * "MAMAN" read back as "— MAMAN = = —=——="). None of "=", "~", "^", "_",
@@ -245,7 +280,7 @@ function extractNamaAlamat(lines: string[]): { nama: string; alamat: string } {
       awaitingNama = false;
       continue;
     }
-    if (OTHER_LABEL.test(line) || /\bNIK\b/i.test(line)) {
+    if (isBoundaryLine(line)) {
       collectingAlamat = false;
       awaitingNama = false;
       continue;

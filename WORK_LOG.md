@@ -44,6 +44,26 @@
      two-pass OCR) dipertahankan. Build & eslint bersih. **Masih perlu
      dites di HP fisik** — prediksi: Nama kini terbaca karena
      preprocessing-nya yang dulu terbukti membaca Nama di foto ini.
+   - **Update 2026-08-05 (lanjutan 4)**: user tes lagi setelah restore
+     CLAHE — **Nama BERHASIL terbaca** (`MAMAN`) di HP fisik, persis
+     prediksi di atas. Terima kasih bukti fisik baru. Dua temuan lain
+     di raw text tes itu lalu diperbaiki: (a) label "NIK" bisa salah
+     terbaca jadi `ik` (huruf N hilang) — `extractNik` sekarang
+     memakai `findFuzzyLabel(line, "NIK", 1)` sebagai fallback supaya
+     baris NIK tetap ditemukan; (b) label boundary RT/RW & Kel/Desa
+     bisa salah terbaca (`RIAW`, `KeiDesa`) dan bikin Alamat nyerap
+     baris-baris di bawahnya — helper baru `isBoundaryLine()` pakai
+     fuzzy-match per-kata ke bentuk compact (`RTRW`, `KELDESA`, dst.)
+     di samping regex `OTHER_LABEL` yang sudah ada. Diverifikasi
+     offline: raw text fisik baru → Alamat sekarang berhenti tepat di
+     `RIAW`/`KeiDesa` (tidak lagi menelan `020/006`, `1EBAKDENOKE`,
+     dst.), semua regression case lama (tes fisik pertama, galeri,
+     "Alama" fuzzy, NIK berisi 8 asli, nama ber-noise, label NIK
+     hilang) tetap lolos. Build & eslint bersih. Catatan jujur: NIK
+     masih kosong di foto tes terbaru itu karena **level OCR** — run
+     digit `3L,72051.50254808` cuma menghasilkan 15 digit (koma/titik
+     + digit hilang), jadi secara desain sengaja tidak diisi sampah
+     (user perlu foto ulang yang lebih jelas untuk NIK).
 2. **Deploy Vercel (`idcard-brown-delta`) sempat 2 commit tertinggal**
    — **dicek 2026-08-04**: akun Vercel yang terhubung ke sesi kerja ini
    (`ayahbaik's projects`) cuma punya akses ke project `sikara`, TIDAK
