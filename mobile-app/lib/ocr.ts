@@ -3,7 +3,6 @@ import { createWorker, PSM } from "tesseract.js";
 export type KtpOcrResult = {
   nik: string;
   nama: string;
-  tempatTglLahir: string;
   alamat: string;
   rawText: string;
 };
@@ -41,90 +40,46 @@ export function isPlausibleNik(nik: string): boolean {
   return NIK_SHAPE.test(nik);
 }
 
-/**
- * KTP fields in the order they physically appear on an Indonesian KTP.
- * Used to segment raw OCR text into fields: a line that matches one of
- * these labels starts a new field, and any following unlabeled lines are
- * treated as a continuation of that field (this is what makes multi-line
- * "Alamat" values work, since street + RT/RW/Kel/Kec are printed on
- * separate lines with no repeated label).
- */
-const FIELD_LABELS: { key: string; re: RegExp; multiline?: boolean }[] = [
-  { key: "nik", re: /\bNIK\b/i },
-  { key: "nama", re: /\bNAMA\b/i },
-  { key: "ttl", re: /TEMPAT\s*\/?\s*TG?L\.?\s*LAHIR/i },
-  { key: "jk", re: /JENIS\s*KELAMIN/i },
-  { key: "alamat", re: /\bALAMAT\b/i, multiline: true },
-  { key: "rtrw", re: /\bRT\s*\/?\s*RW\b/i },
-  { key: "keldesa", re: /KEL\s*\/?\s*DESA/i },
-  { key: "kecamatan", re: /KECAMATAN/i },
-  { key: "agama", re: /\bAGAMA\b/i },
-  { key: "kawin", re: /STATUS\s*PERKAWINAN/i },
-  { key: "kerja", re: /PEKERJAAN/i },
-  { key: "wn", re: /KEWARGANEGARAAN/i },
-  { key: "berlaku", re: /BERLAKU/i },
-];
-
-function parseKtpFields(lines: string[]): Record<string, string> {
-  const values: Record<string, string> = {};
-  let currentKey: string | null = null;
-  let currentMultiline = false;
-
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line) continue;
-
-    const label = FIELD_LABELS.find((l) => l.re.test(line));
-    if (label) {
-      currentKey = label.key;
-      currentMultiline = Boolean(label.multiline);
-      // The value is often on the SAME line as the label with no ":"
-      // separator at all (OCR frequently drops it, e.g. "Nama MAMAN"
-      // instead of "Nama : MAMAN") - strip the matched label text itself
-      // plus any leading punctuation, and whatever remains is the value.
-      const withoutLabel = line
-        .replace(label.re, "")
-        .replace(/^[\s:.\-|]+/, "")
-        .trim();
-      values[currentKey] = withoutLabel;
-      continue;
-    }
-
-    // No label matched on this line - it's a continuation of whatever
-    // field is currently open: fills in the value when the label line
-    // itself had nothing after it, or appends for multi-line fields
-    // like Alamat (street line, then RT/RW.../Kec... would normally have
-    // their own labels, but OCR sometimes drops those labels too).
-    if (currentKey && !values[currentKey]) {
-      values[currentKey] = line;
-      continue;
-    }
-    if (currentKey && currentMultiline) {
-      values[currentKey] = `${values[currentKey]} ${line}`;
-    }
+/** When a digit run near "NIK" is longer than 16 (a stray extra character
+ * got glued onto the front/back - e.g. a misread ":" or a fragment of the
+ * "NIK" label itself), try every 16-digit window inside it and prefer one
+ * that actually matches the NIK shape, instead of blindly taking the
+ * first 16 digits (which silently produces a shifted, wrong number: seen
+ * in practice as e.g. "1367205180284000" - a 1 glued on the front, real
+ * last digit falls off the end). Falls back to the first 16 if no window
+ * is structurally plausible. */
+function bestNikWindow(digits: string): string {
+  if (digits.length <= 16) return digits;
+  for (let i = 0; i + 16 <= digits.length; i++) {
+    const window = digits.slice(i, i + 16);
+    if (isPlausibleNik(window)) return window;
   }
-  return values;
+  return digits.slice(0, 16);
 }
 
-/** Tolerant NIK extraction: OCR frequently inserts stray spaces between
- * digits and misreads some digits as similar-looking letters, so a
- * strict /\d{16}/ match often fails even when the number was read
+/** Tolerant NIK extraction: OCR frequently inserts stray spaces/characters
+ * around the digits and misreads some digits as similar-looking letters,
+ * so a strict /\d{16}/ match often fails even when the number was read
  * essentially correctly. Letter->digit normalization is deliberately
  * scoped to text near the "NIK" label only (never the whole card), so it
  * can't accidentally turn part of the Nama/Alamat text into a fake NIK. */
 function extractNik(text: string, lines: string[]): string {
   const nikLineIdx = lines.findIndex((l) => /\bNIK\b/i.test(l));
   if (nikLineIdx !== -1) {
-    for (const candidate of [lines[nikLineIdx], lines[nikLineIdx + 1] ?? ""]) {
-      const normalized = digitsOnly(normalizeOcrDigits(candidate));
-      if (normalized.length === 16) return normalized;
-    }
     const nearby = `${lines[nikLineIdx]} ${lines[nikLineIdx + 1] ?? ""}`;
-    const runs = nearby.match(/[\dOoQDiIlL|!zZsSbBgG?]{16,24}/g) ?? [];
+    const runs =
+      nearby.match(/[\dOoQDiIlL|!zZsSbBgG?]{14,26}/g) ?? [];
+    let firstValidLength = "";
     for (const run of runs) {
       const normalized = digitsOnly(normalizeOcrDigits(run));
-      if (normalized.length === 16) return normalized;
+      if (normalized.length < 16) continue;
+      const windowed = bestNikWindow(normalized);
+      if (isPlausibleNik(windowed)) return windowed;
+      if (!firstValidLength && normalized.length >= 16) {
+        firstValidLength = windowed;
+      }
     }
+    if (firstValidLength) return firstValidLength;
   }
   // Last resort: pure digit-with-spaces run anywhere in the document (no
   // letter normalization here - too risky to apply card-wide).
@@ -134,6 +89,71 @@ function extractNik(text: string, lines: string[]): string {
     if (d.length === 16) return d;
   }
   return text.match(/\d{16}/)?.[0] ?? "";
+}
+
+const NAMA_LABEL = /\bNAMA\b/i;
+const ALAMAT_LABEL = /\bALAMAT\b/i;
+
+/** Everything else printed on a KTP (Tempat/Tgl Lahir, Jenis Kelamin,
+ * RT/RW, Kel/Desa, Kecamatan, Agama, Status Perkawinan, Pekerjaan,
+ * Kewarganegaraan, Berlaku Hingga) - the app only needs NIK/Nama/Alamat,
+ * so none of these are extracted or stored. They're matched here for ONE
+ * reason only: to tell extractNama/extractAlamat where those two fields
+ * END, since Alamat especially is printed across several unlabeled
+ * continuation lines (street, then RT/RW, Kel/Desa, Kecamatan) and would
+ * otherwise keep swallowing every line below it to the bottom of the
+ * card. */
+const OTHER_LABEL =
+  /TEMPAT\s*\/?\s*TG?L\.?\s*LAHIR|JENIS\s*KELAMIN|\bRT\s*\/?\s*RW\b|KEL\s*\/?\s*DESA|KECAMATAN|\bAGAMA\b|STATUS\s*PERKAWINAN|PEKERJAAN|KEWARGANEGARAAN|BERLAKU/i;
+
+function stripLabel(line: string, label: RegExp): string {
+  return line.replace(label, "").replace(/^[\s:.\-|]+/, "").trim();
+}
+
+/** Nama and Alamat only. Nama is a single line (label + value, or value on
+ * the next line if OCR dropped the ":"). Alamat is the only multi-line
+ * field kept: it keeps appending lines until the next recognized label of
+ * ANY kind (including the "other" ones above, which are otherwise
+ * ignored) so it doesn't run past the address block. */
+function extractNamaAlamat(lines: string[]): { nama: string; alamat: string } {
+  let nama = "";
+  let alamat = "";
+  let collectingAlamat = false;
+  let awaitingNama = false;
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+
+    if (NAMA_LABEL.test(line)) {
+      collectingAlamat = false;
+      nama = stripLabel(line, NAMA_LABEL);
+      awaitingNama = nama === "";
+      continue;
+    }
+    if (ALAMAT_LABEL.test(line)) {
+      alamat = stripLabel(line, ALAMAT_LABEL);
+      collectingAlamat = true;
+      awaitingNama = false;
+      continue;
+    }
+    if (OTHER_LABEL.test(line) || /\bNIK\b/i.test(line)) {
+      collectingAlamat = false;
+      awaitingNama = false;
+      continue;
+    }
+
+    // Label-less line: either the value for a "Nama" label that had
+    // nothing after it (":" dropped by OCR, value pushed to its own
+    // line), or a continuation line for Alamat.
+    if (awaitingNama) {
+      nama = line;
+      awaitingNama = false;
+    } else if (collectingAlamat) {
+      alamat = alamat ? `${alamat} ${line}` : line;
+    }
+  }
+  return { nama, alamat };
 }
 
 /** Grayscale + contrast stretch + mild upscale, done in-browser via canvas
@@ -208,13 +228,12 @@ export async function scanKtp(
       .map((l) => l.trim())
       .filter(Boolean);
 
-    const fields = parseKtpFields(lines);
+    const { nama, alamat } = extractNamaAlamat(lines);
 
     return {
       nik: extractNik(text, lines),
-      nama: fields.nama ?? "",
-      tempatTglLahir: fields.ttl ?? "",
-      alamat: fields.alamat ?? "",
+      nama,
+      alamat,
       rawText: text,
     };
   } finally {
