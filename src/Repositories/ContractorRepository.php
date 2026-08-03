@@ -193,8 +193,8 @@ class ContractorRepository
     public function logActivity($action, $table, $record_id, $description)
     {
         if (isset($_SESSION['user_id'])) {
-            $stmt = $this->pdo->prepare("INSERT INTO activity_logs (user_id, action, table_name, record_id, created_at) VALUES (?, ?, ?, ?, NOW())");
-            $stmt->execute([$_SESSION['user_id'], $action, $table, $record_id]);
+            $stmt = $this->pdo->prepare("INSERT INTO activity_logs (user_id, action, table_name, record_id, description, created_at) VALUES (?, ?, ?, ?, ?, NOW())");
+            $stmt->execute([$_SESSION['user_id'], $action, $table, $record_id, $description]);
         }
     }
 

@@ -142,6 +142,7 @@ CREATE TABLE `activity_logs` (
   `action` varchar(255) NOT NULL,
   `table_name` varchar(255) DEFAULT NULL,
   `record_id` int unsigned DEFAULT NULL,
+  `description` text,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `activity_logs_user_id_foreign` (`user_id`),

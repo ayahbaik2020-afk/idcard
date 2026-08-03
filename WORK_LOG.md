@@ -18,45 +18,84 @@
 > asumsi awal dari diskusi 2026-08-01 — sesuaikan kalau ada
 > pertimbangan lain dari lapangan.
 
-1. **[Akurasi/UX] OCR KTP — hasil tes terbaru user** (setelah fix
-   `eng`+PSM): via kamera HP, Nama & NIK sudah terbaca benar tapi
-   **Alamat masih belum**. Via upload file dari browser (bukan live
-   camera), **cuma NIK yang berhasil kebaca** (Nama/Alamat gagal) —
-   kemungkinan jalur upload file tidak lewat preprocessing/crop yang
-   sama dengan jalur live camera, perlu ditelusuri.
+1. **[Akurasi OCR] Alamat masih belum akurat via kamera live** — Nama &
+   NIK sudah benar, tapi Alamat (field multi-baris, paling rentan salah
+   baca) masih sering perlu koreksi manual. Kemungkinan batas akurasi
+   Tesseract untuk teks kecil/padat di font KTP, bukan bug logic —
+   mitigasi yang sudah ada (user wajib review/edit sebelum submit,
+   status per-field, panel raw text) tetap jalan sebagai jaring
+   pengaman. **Perlu foto/device asli dari lapangan untuk tuning lebih
+   lanjut** — tidak bisa diprogress lebih jauh dari sesi remote.
 2. **Deploy Vercel (`idcard-brown-delta`) sempat 2 commit tertinggal**
-   (`4ae8fce`, `5dff99c` tidak auto-deploy, stuck di commit `197d705`
-   selama ~2 jam) — root cause pastinya belum dikonfirmasi (dugaan:
-   push oleh akun GitHub `IT-Merak` yang mungkin bukan member tim
-   Vercel project ini, sehingga auto-deploy di-skip). Belakangan sudah
-   ke-deploy juga (fitur `5dff99c` sudah muncul saat user tes), tapi
-   penyebabnya belum diklarifikasi ke pemilik project — perlu dicek di
-   Vercel dashboard (tab Deployments untuk status "Skipped"/"Failed",
-   dan Settings → Git untuk daftar member tim) supaya commit-commit
-   selanjutnya tidak mengalami hal sama.
-3. **PVC PLANT**: belum ada satupun record attendance tercatat di
-   database (beda dengan EDC/VCM yang sudah dikonfirmasi ada bug
-   mismatch nama plant). Belum jelas apakah PVC juga ada bug serupa
-   atau memang belum pernah dipakai — perlu dicoba scan langsung di
-   plant-display PVC untuk konfirmasi.
-4. **Data historis `work_hours`** yang mungkin sudah kadung salah
-   dihitung (dari bug sesi >24 jam yang sudah diperbaiki) belum
-   dikoreksi — perbaikan yang sudah jalan cuma berlaku untuk
-   perhitungan baru ke depan.
-5. **Redesign plant-display**: sudah dites lewat code review + PHP
-   lint, **belum dikonfirmasi tampilannya langsung di layar TV/tablet
-   plant** (terutama kontras warna kartu vs video, ukuran font di
-   layar besar, dan posisi scanner pojok kanan-bawah).
-6. **`activity_logs` tidak punya kolom `description`** — setiap
-   pemanggilan `logActivity($action, $table, $id, $description)` di
-   seluruh codebase diam-diam membuang parameter `$description`-nya
-   (cuma `action`/`table_name`/`record_id`/timestamp yang tersimpan).
-   Ditemukan tidak sengaja saat verifikasi fitur renewal ID Card
-   (2026-08-03) — log activity jadi kurang berguna untuk audit karena
-   tidak ada detail apa yang sebenarnya terjadi. Perlu tambah kolom
-   `description TEXT` + update query INSERT di `logActivity()`.
+   — **dicek 2026-08-04**: akun Vercel yang terhubung ke sesi kerja ini
+   (`ayahbaik's projects`) cuma punya akses ke project `sikara`, TIDAK
+   ada akses ke `idcard-brown-delta` sama sekali (`list_projects` &
+   `list_teams` tidak menampilkannya). Ini mendukung dugaan awal:
+   project itu kemungkinan di bawah akun/tim Vercel lain (mungkin akun
+   `IT-Merak` sendiri, terpisah dari akun yang terhubung ke sesi kerja
+   ini). **Perlu dicek manual oleh pemilik akun**: Vercel dashboard →
+   project `idcard-brown-delta` → Settings → Git (siapa yang terhubung)
+   dan tab Deployments (cari status "Skipped").
+3. **Redesign plant-display**: **masih blocked** — perlu dikonfirmasi
+   langsung di layar TV/tablet fisik plant (kontras kartu vs video,
+   ukuran font, posisi scanner). Tidak bisa diverifikasi dari sesi kerja
+   remote manapun tanpa akses fisik ke perangkat di lapangan.
 
 ## ✅ Selesai
+
+### 2026-08-04 — Investigasi & perbaikan lanjutan (mobile app + data)
+
+- **`activity_logs.description`**: kolom `description TEXT` ditambahkan
+  (migration `2026_08_04_add_activity_logs_description.sql`), ketiga
+  implementasi `logActivity()` yang terduplikasi (`ContractorRepository`,
+  `SettingController`, `SanctionController`) diperbaiki supaya benar-
+  benar menyimpan parameter `$description` yang selama ini dibuang
+  diam-diam. Diverifikasi langsung: insert test row, dikonfirmasi kolom
+  terisi benar, `schema.sql` disinkronkan.
+- **PVC PLANT tidak ada attendance**: dikonfirmasi **bukan bug**. Ada 2
+  kontraktor terdaftar di `PVC PLANT`; logika matching plant di
+  `AttendanceController::scan()` sudah benar (tidak ada mismatch nama
+  seperti kasus EDC/VCM). Dites langsung lewat endpoint scan sungguhan
+  (`id_card=26.0003`) → check-in berhasil. Kesimpulan: kiosk PVC memang
+  belum pernah dipakai di lapangan. Data test dibersihkan setelahnya.
+- **Data historis `work_hours`**: dicek seluruh 4 record attendance
+  yang sudah check-out — **tidak ada satupun yang kena bug >24 jam**
+  (tidak ada sesi sepanjang itu dalam data yang ada). Ditemukan 2
+  record beda pembulatan ~0.01 jam (rounding artifact, bukan bug) —
+  sudah dikoreksi jadi nilai yang benar dihitung ulang dari
+  `check_in_time`/`check_out_time` mentah.
+- **OCR jalur upload-file berbeda dari live camera**: root cause
+  ditemukan di `CameraCapture.tsx` — jalur live-camera (`capture()`)
+  memotong foto tepat sesuai kotak panduan sebelum diproses OCR, tapi
+  jalur fallback `<input type="file" capture>` (aktif kalau
+  `getUserMedia` gagal/ditolak) mengirim foto **mentah tanpa crop** ke
+  OCR — cocok dengan gejala "cuma NIK yang kebaca" (NIK punya fallback
+  pencarian di seluruh dokumen, field lain tidak). Diperbaiki: logika
+  crop (`computeCoverCrop`) diekstrak jadi shared function, dipakai
+  juga di jalur fallback (`cropFallbackFile`). Build sukses, **belum
+  dites di device fisik**.
+- **Task Scheduler otomatis untuk sync** (root cause "sinkronisasi
+  masih gagal" dari laporan sebelumnya): didaftarkan ulang
+  (`schtasks /create ... /sc minute /mo 10`), berhasil kali ini
+  (percobaan sebelumnya gagal tanpa error tercatat — kemungkinan
+  masalah state sesaat, bukan masalah permanen). Dites trigger manual
+  → sukses (`Last Result: 0`), terverifikasi lewat `scripts/sync.log`.
+  Sync sekarang otomatis jalan tiap 10 menit selama user `IT-Merak`
+  login di komputer ini (mode "Interactive only").
+- **Bug scanner QR freeze/error setelah scan (`p2k3/page.tsx`)**:
+  `scanner.clear()` (sinkron, bisa throw) dibungkus try/catch;
+  `scanner.stop()` tidak lagi dipanggil dobel (di callback sukses DAN
+  di cleanup effect) — sekarang cuma cleanup effect yang jadi satu-
+  satunya titik teardown, dengan guard anti-double-handling.
+- **Tombol sync di halaman awal mobile app**: `lib/useSyncStatus.ts`
+  (hook reusable, diekstrak dari logic yang tadinya inline & terduplikasi
+  di `register/page.tsx`) + `components/SyncStatusBar.tsx`, dipasang di
+  `app/page.tsx` (halaman utama). Auto-refresh saat halaman dibuka +
+  tombol manual. Catatan: ini me-refresh tampilan dari data Supabase
+  (hasil push terakhir server lokal), BUKAN memicu langsung script PHP
+  di server lokal (LAN pabrik sengaja tidak reachable dari Vercel).
+- Semua perubahan lolos `npm run build` (TypeScript bersih) dan `php -l`
+  di seluruh file PHP yang disentuh.
 
 ### 2026-08-03 — ID Card baru otomatis saat registrasi diperpanjang
 - `ContractorService::updateContractor()`: kalau kontraktor tadinya

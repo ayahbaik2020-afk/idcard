@@ -56,6 +56,71 @@ export default function CameraCapture({ onCapture, frameLabel, aspect = "card" }
   // the device's actual rendered container size.
   const GUIDE_INSET = 0.06;
 
+  /**
+   * Shared "object-fit: cover then inset by GUIDE_INSET" crop math, used
+   * by both the live-camera capture() below AND the <input type="file">
+   * fallback's cropFallbackFile(). Previously only the live path cropped
+   * to the guide box - the fallback (triggered when getUserMedia fails/is
+   * denied) sent the FULL raw photo straight to OCR, including whatever
+   * background/table/hand was in frame. Since the OCR pipeline (see
+   * lib/ocr.ts) was tuned against tightly-cropped card photos, that extra
+   * background measurably hurt field recognition (NIK still worked - it
+   * has a document-wide fallback search - but Nama/Alamat, which rely on
+   * parseKtpFields() finding labels in the expected relative layout, did
+   * not). This makes both paths crop the same way.
+   */
+  function computeCoverCrop(sourceWidth: number, sourceHeight: number) {
+    const containerAspect = aspect === "card" ? 3 / 2 : 3 / 4;
+    const sourceAspect = sourceWidth / sourceHeight;
+
+    let coverWidth: number, coverHeight: number, coverX: number, coverY: number;
+    if (sourceAspect > containerAspect) {
+      coverHeight = sourceHeight;
+      coverWidth = sourceHeight * containerAspect;
+      coverX = (sourceWidth - coverWidth) / 2;
+      coverY = 0;
+    } else {
+      coverWidth = sourceWidth;
+      coverHeight = sourceWidth / containerAspect;
+      coverX = 0;
+      coverY = (sourceHeight - coverHeight) / 2;
+    }
+
+    return {
+      sx: coverX + coverWidth * GUIDE_INSET,
+      sy: coverY + coverHeight * GUIDE_INSET,
+      sWidth: coverWidth * (1 - 2 * GUIDE_INSET),
+      sHeight: coverHeight * (1 - 2 * GUIDE_INSET),
+    };
+  }
+
+  async function cropFallbackFile(file: File): Promise<File> {
+    try {
+      const bitmap = await createImageBitmap(file);
+      const { sx, sy, sWidth, sHeight } = computeCoverCrop(bitmap.width, bitmap.height);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(sWidth);
+      canvas.height = Math.round(sHeight);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return file;
+      ctx.drawImage(bitmap, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
+
+      return await new Promise<File>((resolve) => {
+        canvas.toBlob(
+          (blob) => resolve(blob ? new File([blob], file.name, { type: "image/jpeg" }) : file),
+          "image/jpeg",
+          0.9
+        );
+      });
+    } catch (e) {
+      // If cropping fails for any reason (unsupported format, etc.), fall
+      // back to the original uncropped file rather than blocking the user.
+      console.error(e);
+      return file;
+    }
+  }
+
   function capture() {
     const video = videoRef.current;
     if (!video || !video.videoWidth) return;
@@ -68,28 +133,7 @@ export default function CameraCapture({ onCapture, frameLabel, aspect = "card" }
     // regardless of what the guide box showed - including background
     // outside the card. Replicate the same "cover" math here so the
     // captured image matches exactly what the user saw inside the guide.
-    const containerAspect = aspect === "card" ? 3 / 2 : 3 / 4;
-    const videoAspect = video.videoWidth / video.videoHeight;
-
-    let coverWidth: number, coverHeight: number, coverX: number, coverY: number;
-    if (videoAspect > containerAspect) {
-      // Video is relatively wider than the container -> cover crops the sides.
-      coverHeight = video.videoHeight;
-      coverWidth = video.videoHeight * containerAspect;
-      coverX = (video.videoWidth - coverWidth) / 2;
-      coverY = 0;
-    } else {
-      // Video is relatively taller/narrower -> cover crops top/bottom.
-      coverWidth = video.videoWidth;
-      coverHeight = video.videoWidth / containerAspect;
-      coverX = 0;
-      coverY = (video.videoHeight - coverHeight) / 2;
-    }
-
-    const sx = coverX + coverWidth * GUIDE_INSET;
-    const sy = coverY + coverHeight * GUIDE_INSET;
-    const sWidth = coverWidth * (1 - 2 * GUIDE_INSET);
-    const sHeight = coverHeight * (1 - 2 * GUIDE_INSET);
+    const { sx, sy, sWidth, sHeight } = computeCoverCrop(video.videoWidth, video.videoHeight);
 
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(sWidth);
@@ -118,9 +162,9 @@ export default function CameraCapture({ onCapture, frameLabel, aspect = "card" }
           type="file"
           accept="image/*"
           capture="environment"
-          onChange={(e) => {
+          onChange={async (e) => {
             const f = e.target.files?.[0];
-            if (f) onCapture(f);
+            if (f) onCapture(await cropFallbackFile(f));
           }}
           className="text-sm"
         />
