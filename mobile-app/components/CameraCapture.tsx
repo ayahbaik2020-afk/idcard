@@ -69,7 +69,7 @@ export default function CameraCapture({ onCapture, frameLabel, aspect = "card" }
    * parseKtpFields() finding labels in the expected relative layout, did
    * not). This makes both paths crop the same way.
    */
-  function computeCoverCrop(sourceWidth: number, sourceHeight: number) {
+  function computeCoverCrop(sourceWidth: number, sourceHeight: number, inset: number) {
     const containerAspect = aspect === "card" ? 3 / 2 : 3 / 4;
     const sourceAspect = sourceWidth / sourceHeight;
 
@@ -87,27 +87,32 @@ export default function CameraCapture({ onCapture, frameLabel, aspect = "card" }
     }
 
     return {
-      sx: coverX + coverWidth * GUIDE_INSET,
-      sy: coverY + coverHeight * GUIDE_INSET,
-      sWidth: coverWidth * (1 - 2 * GUIDE_INSET),
-      sHeight: coverHeight * (1 - 2 * GUIDE_INSET),
+      sx: coverX + coverWidth * inset,
+      sy: coverY + coverHeight * inset,
+      sWidth: coverWidth * (1 - 2 * inset),
+      sHeight: coverHeight * (1 - 2 * inset),
     };
   }
 
   async function cropFallbackFile(file: File): Promise<File> {
     try {
-      // imageOrientation: "from-image" makes createImageBitmap apply the
-      // photo's EXIF rotation tag before handing back pixel data - without
-      // it, phone photos (which are very often stored "sideways" at the
-      // sensor level with an EXIF tag telling viewers to rotate them) get
-      // cropped using their raw, unrotated width/height. That silently
-      // crops the wrong rectangle (e.g. slicing off the left edge of every
-      // line of text) while still looking fine in <img> previews, which
-      // DO respect EXIF rotation automatically - hence the mismatch between
-      // "looks fine in the preview" and "OCR/crop is reading the wrong
-      // region".
+      // NOTE: unlike capture() below, this does NOT apply GUIDE_INSET.
+      // GUIDE_INSET exists because the on-screen dashed guide box during
+      // LIVE camera capture deliberately gets users to leave a margin
+      // around the card - insetting the crop trims that margin back out.
+      // A gallery/file-picker photo was never taken against that guide
+      // box, so there's no such margin to assume: real-world KTP photos
+      // from a gallery are typically already framed with the card filling
+      // almost the entire shot (confirmed against an actual user photo:
+      // 1085x692, i.e. only ~2% wider than the 3:2 container - virtually
+      // no slack). Applying the same 6% inward inset on top of that cuts
+      // directly into the card's real content on every side (e.g. "NIK"
+      // -> "IK", "Nama" -> "ma") - this was the actual root cause of the
+      // upload-path failures, not EXIF (checked: this device's photos
+      // carry no EXIF orientation tag at all). Only the aspect-correcting
+      // "cover" crop is applied here; inset stays 0.
       const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-      const { sx, sy, sWidth, sHeight } = computeCoverCrop(bitmap.width, bitmap.height);
+      const { sx, sy, sWidth, sHeight } = computeCoverCrop(bitmap.width, bitmap.height, 0);
 
       const canvas = document.createElement("canvas");
       canvas.width = Math.round(sWidth);
@@ -143,7 +148,7 @@ export default function CameraCapture({ onCapture, frameLabel, aspect = "card" }
     // regardless of what the guide box showed - including background
     // outside the card. Replicate the same "cover" math here so the
     // captured image matches exactly what the user saw inside the guide.
-    const { sx, sy, sWidth, sHeight } = computeCoverCrop(video.videoWidth, video.videoHeight);
+    const { sx, sy, sWidth, sHeight } = computeCoverCrop(video.videoWidth, video.videoHeight, GUIDE_INSET);
 
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(sWidth);
