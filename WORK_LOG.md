@@ -18,15 +18,21 @@
 > asumsi awal dari diskusi 2026-08-01 — sesuaikan kalau ada
 > pertimbangan lain dari lapangan.
 
-1. **[Akurasi OCR] Perlu tes ulang di device fisik setelah fix inset
-   crop upload** (commit `04ed0a5`, lihat entri Selesai terkait) —
-   fix ini mengatasi kegagalan TOTAL (0 field terbaca) di jalur
-   upload, sudah divalidasi offline pakai foto asli user, tapi belum
-   dikonfirmasi langsung di HP. Akurasi digit NIK & Alamat untuk foto
-   fisik (dengan pantulan hologram) kemungkinan masih perlu koreksi
-   manual — ini limitasi akurasi yang sudah diketahui, bukan bug baru;
-   mitigasi yang ada (review wajib, status per-field, panel raw text)
-   tetap jalan sebagai jaring pengaman.
+1. **[Akurasi OCR] Perlu tes ulang di device fisik setelah fix CLAHE**
+   (commit `0895966`, lihat entri Selesai terkait 2026-08-04 lanjutan 4)
+   — user kirim screenshot hasil tes fisik nyata: NIK kosong total,
+   Nama salah baca jadi "ARAN —" (asli "MAMAN"), Alamat kosong total.
+   Root cause ditemukan (bukan cuma dugaan): global contrast stretch
+   yang dipakai sebelumnya membuat Tesseract salah baca label "ALAMAT"
+   jadi "Aiamat" (persis skenario yang sudah diwanti-wanti di komentar
+   kode lama) — karena regex label butuh match persis, seluruh field
+   Alamat hilang. Diganti CLAHE (adaptive per-tile, bukan global) —
+   diuji offline pakai foto asli user (direkonstruksi dari screenshot
+   yang sama), hasilnya Nama & label Alamat kebaca benar, NIK 15/16
+   digit benar. **Tapi ini masih pakai foto hasil rekonstruksi dari
+   screenshot (resolusi diturunkan), BUKAN pipeline live-device yang
+   sesungguhnya** — perlu dikonfirmasi lagi dengan tes ulang langsung
+   di HP sebelum dianggap tuntas.
 2. **Deploy Vercel (`idcard-brown-delta`) sempat 2 commit tertinggal**
    — **dicek 2026-08-04**: akun Vercel yang terhubung ke sesi kerja ini
    (`ayahbaik's projects`) cuma punya akses ke project `sikara`, TIDAK
@@ -43,6 +49,55 @@
    remote manapun tanpa akses fisik ke perangkat di lapangan.
 
 ## ✅ Selesai
+
+### 2026-08-04 (lanjutan 4) — Root cause OCR gagal total di device fisik: CLAHE
+- User kirim screenshot tes fisik nyata (foto KTP asli, bukan foto
+  galeri test sebelumnya): NIK "(kosong) - Tidak terbaca", Nama salah
+  total ("ARAN —" vs asli "MAMAN"), Alamat "(kosong) - Tidak terbaca".
+- Didiagnosis **offline dengan bukti nyata**, bukan tebakan: crop foto
+  KTP diambil dari screenshot yang sama (region kartu di preview),
+  diproses ulang lewat pipeline app yang persis sama (`tesseract` CLI,
+  `eng`, PSM SINGLE_BLOCK) memakai preprocessing lama (linear contrast
+  stretch) vs beberapa alternatif, dibandingkan sisi-demi-sisi.
+- **Root cause dikonfirmasi**: preprocessing lama (global/linear
+  contrast stretch, satu kurva untuk seluruh gambar) membuat Tesseract
+  salah baca label "ALAMAT" jadi "Aiamat" — persis skenario yang sudah
+  diwanti-wanti di komentar kode sejak sesi sebelumnya ("kalau
+  Tesseract salah baca label itu sendiri, field itu gagal terbaca sama
+  sekali"). Karena regex label butuh match persis (`\bALAMAT\b`), satu
+  huruf salah baca itu saja bikin seluruh field Alamat hilang. Pola
+  cahaya hologram/guilloche KTP yang tidak rata di seluruh kartu bikin
+  contrast stretch GLOBAL (satu kurva untuk semua piksel) tidak cukup —
+  sebagian area jadi terlalu gelap/terang.
+- Diuji beberapa alternatif preprocessing side-by-side pada foto yang
+  sama: CLAHE saja, CLAHE+denoise (bilateral), CLAHE+Otsu threshold,
+  CLAHE+adaptive threshold, unsharp+CLAHE — **CLAHE saja (clipLimit
+  3.0, tile 8x8) menang telak**: label Alamat kebaca benar (multi-baris
+  tertangkap sempurna), Nama "MAMAN" benar, NIK 15/16 digit benar
+  (vs sebelumnya 0 field terbaca sama sekali). Threshold/denoise
+  tambahan malah memperburuk (istilah teknis: over-smoothing
+  menghilangkan detail teks yang sudah tipis).
+- Juga dites PSM 3/4/6/11/12 dengan preprocessing baru — PSM 6
+  (SINGLE_BLOCK, yang sudah dipakai) tetap terbaik, tidak diubah.
+- Implementasi: CLAHE ditulis dari nol di `lib/ocr.ts` (histogram
+  per-tile + clipping + CDF mapping + interpolasi bilinear antar tile
+  supaya tidak ada garis batas terlihat) karena tidak ada OpenCV di
+  browser. Diverifikasi 2 lapis sebelum dipakai: (1) port Python-nya
+  dicocokkan piksel-demi-piksel ke hasil `cv2.CLAHE` asli (beda
+  rata-rata cuma 0.58/255), (2) fungsi `applyClahe` yang di-commit
+  (bukan port Python-nya) diekstrak & dijalankan lewat Node.js langsung
+  terhadap data piksel yang sama, hasilnya dicek ulang lewat
+  `tesseract` — bukan cuma percaya translasi manual dari Python ke TS.
+- Resolusi cap dinaikkan dari 1600px ke 2200px (sisi terpanjang) — foto
+  HP modern seringkali di atas 1600px meski sudah di-crop pas ke
+  kartu, downscale berlebihan membuang detail teks kecil (RT/RW dll).
+- Build sukses (`npm run build`, TypeScript bersih). Commit `0895966`,
+  di-push. **Catatan jujur**: validasi di atas pakai foto hasil
+  rekonstruksi dari screenshot (resolusi diturunkan dari foto asli),
+  BUKAN pipeline live-device yang sesungguhnya — jadi ini kemungkinan
+  besar perbaikan nyata (root cause & mekanisme kegagalannya
+  terkonfirmasi persis, bukan tebakan), tapi **tetap perlu dites ulang
+  di HP fisik** sebelum dianggap tuntas (lihat item "Belum" #1).
 
 ### 2026-08-04 (lanjutan 3) — Sederhanakan parsing OCR: fokus NIK/Nama/Alamat
 - Atas permintaan user: fix crop (di atas) memang bikin foto ter-crop
