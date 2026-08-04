@@ -156,6 +156,29 @@
   semua memuat sidebar baru (sidebar-inner, sidebar-group-title, toggle),
   tabel settings sudah ter-wrapper, dashboard memuat stat-grid.
 
+### 2026-08-04 — Fix UI "berantakan" + vendor library referensi
+- **Root cause berantakan**: kartu statistik grid `auto-fit minmax(230px)`
+  di beberapa lebar layar umum (1024–1280px) menghasilkan layout **3+1**
+  (kartu ke-4 menggantung sendiri), plus `.row` Bootstrap membawa margin
+  negatif gutter sehingga grid melebar melewati container dan terpotong
+  (overflow-x). 
+- **Fix**: grid kartu statistik jadi eksplisit **4 → 2 → 1 kolom**
+  (breakpoint 1200/576px), `.row.stat-grid` di-zero gutter
+  (`margin:0; --bs-gutter-x:0`), padding kolom dihilangkan. Navbar tidak
+  lagi `flex-wrap` (brand truncate). Hapus aturan `auto-fit` yang lama.
+- **Library referensi di-vendor lokal** (aplikasi offline, tidak pakai
+  CDN): `animate.css` (animate.min.css, 72KB) dan `hover.css`
+  (hover-min.css, 95KB) → `public/assets/css/`, dimuat di `layout.php`.
+  Repo referensi di-klon ke `%TEMP%\opencode\ui-refs\` (glass-ui,
+  php-admin-panel/AdminLTE, Hover, animate.css) untuk dipelajari pola
+  desainnya.
+- **Efek halus** (dashboard): 4 kartu statistik `animate__fadeInUp`
+  dengan stagger delay 0.05–0.35s + `hvr-grow` (scale 1.03, bukan lift
+  translateY), `prefers-reduced-motion` dihormati.
+- **Verifikasi**: render via `php -S` — dashboard punya 4 kartu dengan
+  hvr-grow & fadeInUp, semua halaman memuat sidebar, ketiga asset CSS
+  termuat 200. `php -l` bersih. CSS bump ke `?v=4`.
+
 ### 2026-08-04 — Histori sanksi per-orangan di dashboard (fix tombol "History Sanksi")
 - **Bug**: tombol "History Sanksi" di daftar kontraktor (`templates/contractors/list.php`,
   `expired.php`) menuju `index.php?page=sanctions&action=history&contractor_id=X`,
