@@ -52,6 +52,21 @@
 
 ## ✅ Selesai
 
+### 2026-08-04 — Filter plant untuk kedua tabel log kehadiran
+- Switcher periode log (Hari/Minggu/Bulan/Tahun) kini punya dropdown
+  **Plant** (Semua/CA/EDC/VCM/PVC/MEI/HPI/EDC/VCM) yang ikut
+  menyaring kedua tabel log (per Perusahaan & per Man Power).
+- `AttendanceController::buildLogData($period, $log_plant)`: tambah
+  param plant (validasi whitelist, termasuk `EDC/VCM PLANT` yang
+  dipakai scan), kondisi `AND a.plant_location = ?` diterapkan ke
+  kedua query log.
+- `index()` & `exportLog()` meneruskan `log_plant`; subtitle PDF/XLSX
+  menampilkan plant terpilih. Link periode & tombol Export ikut
+  membawa `log_plant` agar filter persist.
+- Template: form dropdown plant (auto-submit) di baris periode log.
+- Diverifikasi: filter PVC → empty-state; filter EDC/VCM → 2 baris
+  (1 di tiap tabel); export dengan filter tetap valid (`PK`/`%PDF`).
+
 ### 2026-08-04 — Export XLSX & PDF untuk kedua tabel log kehadiran
 - Kedua tabel log (per Perusahaan & per Man Power) kini punya tombol
   **Export XLSX** dan **Export PDF** di header card masing-masing.

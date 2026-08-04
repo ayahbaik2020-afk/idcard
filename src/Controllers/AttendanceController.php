@@ -96,9 +96,10 @@ class AttendanceController
 
         // ---- Log tables (per period) ----
         $period = $_GET['period'] ?? 'week';
-        list($from, $to, $company_log, $person_log) = $this->buildLogData($period);
+        $log_plant = $_GET['log_plant'] ?? '';
+        list($from, $to, $company_log, $person_log) = $this->buildLogData($period, $log_plant);
 
-        $data = compact('attendances', 'companies', 'search', 'plant', 'company_id', 'start_date', 'end_date', 'totals', 'pagination', 'period', 'from', 'to', 'company_log', 'person_log');
+        $data = compact('attendances', 'companies', 'search', 'plant', 'company_id', 'start_date', 'end_date', 'totals', 'pagination', 'period', 'from', 'to', 'company_log', 'person_log', 'log_plant');
 
         $content = '';
         ob_start();
@@ -114,11 +115,16 @@ class AttendanceController
         include __DIR__ . '/../../templates/layout.php';
     }
 
-    protected function buildLogData($period)
+    protected function buildLogData($period, $log_plant = '')
     {
         $valid_periods = ['day', 'week', 'month', 'year'];
         if (!in_array($period, $valid_periods, true)) {
             $period = 'week';
+        }
+
+        $valid_plants = ['CA PLANT', 'EDC PLANT', 'VCM PLANT', 'PVC PLANT', 'MEI PLANT', 'HPI PLANT', 'EDC/VCM PLANT'];
+        if ($log_plant !== '' && !in_array($log_plant, $valid_plants, true)) {
+            $log_plant = '';
         }
 
         switch ($period) {
@@ -139,6 +145,15 @@ class AttendanceController
                 break;
         }
 
+        $params = [$from, $to];
+        if ($log_plant !== '') {
+            $plant_sql = " AND a.plant_location = ?";
+            $plant_params = [$log_plant];
+        } else {
+            $plant_sql = "";
+            $plant_params = [];
+        }
+
         // Log per company (PT)
         $stmt = $this->pdo->prepare("
             SELECT DATE(a.check_in_time) AS tanggal, cc.name AS company_name, a.plant_location AS plant,
@@ -146,11 +161,11 @@ class AttendanceController
             FROM attendances a
             JOIN contractors c ON a.contractor_id = c.id
             JOIN contractor_companies cc ON c.company_id = cc.id
-            WHERE DATE(a.check_in_time) BETWEEN ? AND ?
+            WHERE DATE(a.check_in_time) BETWEEN ? AND ?{$plant_sql}
             GROUP BY DATE(a.check_in_time), cc.name, a.plant_location
             ORDER BY tanggal DESC, company_name ASC
         ");
-        $stmt->execute([$from, $to]);
+        $stmt->execute(array_merge($params, $plant_params));
         $company_log = $stmt->fetchAll();
 
         // Log per man power (grouped by NIK so a person keeps their name
@@ -162,11 +177,11 @@ class AttendanceController
             FROM attendances a
             JOIN contractors c ON a.contractor_id = c.id
             JOIN contractor_companies cc ON c.company_id = cc.id
-            WHERE DATE(a.check_in_time) BETWEEN ? AND ?
+            WHERE DATE(a.check_in_time) BETWEEN ? AND ?{$plant_sql}
             GROUP BY DATE(a.check_in_time), c.id_card, c.name, cc.name, a.plant_location
             ORDER BY tanggal DESC, contractor_name ASC
         ");
-        $stmt->execute([$from, $to]);
+        $stmt->execute(array_merge($params, $plant_params));
         $person_log = $stmt->fetchAll();
 
         return [$from, $to, $company_log, $person_log];
@@ -177,8 +192,9 @@ class AttendanceController
         $format = $_GET['format'] ?? 'xlsx';
         $log = $_GET['log'] ?? 'company';
         $period = $_GET['period'] ?? 'week';
+        $log_plant = $_GET['log_plant'] ?? '';
 
-        list($from, $to, $company_log, $person_log) = $this->buildLogData($period);
+        list($from, $to, $company_log, $person_log) = $this->buildLogData($period, $log_plant);
 
         $rows = ($log === 'person') ? $person_log : $company_log;
 
@@ -191,6 +207,9 @@ class AttendanceController
         }
 
         $subtitle = date('d M Y', strtotime($from)) . ' — ' . date('d M Y', strtotime($to));
+        if ($log_plant !== '') {
+            $subtitle .= ' · Plant: ' . $log_plant;
+        }
 
         if ($format === 'pdf') {
             $this->exportLogPdf($title, $subtitle, $columns, $rows, $log);

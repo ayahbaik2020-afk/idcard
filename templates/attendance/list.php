@@ -121,9 +121,24 @@
         $periods = ['day' => 'Hari', 'week' => 'Minggu', 'month' => 'Bulan', 'year' => 'Tahun'];
         foreach ($periods as $p => $label):
             $pqs = ['page' => 'attendance', 'period' => $p];
+            if ($log_plant !== '') $pqs['log_plant'] = $log_plant;
         ?>
         <a href="index.php?<?php echo http_build_query($pqs); ?>" class="btn btn-sm <?php echo $period === $p ? 'btn-primary' : 'btn-outline-secondary'; ?>"><?php echo $label; ?></a>
         <?php endforeach; ?>
+        <form method="GET" class="d-flex align-items-center gap-2 ms-2">
+            <input type="hidden" name="page" value="attendance">
+            <input type="hidden" name="period" value="<?php echo htmlspecialchars($period); ?>">
+            <select name="log_plant" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+                <option value="">Semua Plant</option>
+                <option value="CA PLANT" <?php echo $log_plant == 'CA PLANT' ? 'selected' : ''; ?>>CA PLANT</option>
+                <option value="EDC PLANT" <?php echo $log_plant == 'EDC PLANT' ? 'selected' : ''; ?>>EDC PLANT</option>
+                <option value="VCM PLANT" <?php echo $log_plant == 'VCM PLANT' ? 'selected' : ''; ?>>VCM PLANT</option>
+                <option value="PVC PLANT" <?php echo $log_plant == 'PVC PLANT' ? 'selected' : ''; ?>>PVC PLANT</option>
+                <option value="MEI PLANT" <?php echo $log_plant == 'MEI PLANT' ? 'selected' : ''; ?>>MEI PLANT</option>
+                <option value="HPI PLANT" <?php echo $log_plant == 'HPI PLANT' ? 'selected' : ''; ?>>HPI PLANT</option>
+                <option value="EDC/VCM PLANT" <?php echo $log_plant == 'EDC/VCM PLANT' ? 'selected' : ''; ?>>EDC/VCM PLANT</option>
+            </select>
+        </form>
         <span class="ms-2 text-muted small"><?php echo date('d M Y', strtotime($from)); ?> — <?php echo date('d M Y', strtotime($to)); ?></span>
     </div>
 </div>
@@ -137,6 +152,7 @@
                 <span>
                     <?php
                         $log_qs = ['page' => 'attendance', 'action' => 'exportLog', 'log' => 'company', 'period' => $period];
+                        if ($log_plant !== '') $log_qs['log_plant'] = $log_plant;
                     ?>
                     <a href="index.php?<?php echo http_build_query($log_qs + ['format' => 'xlsx']); ?>" class="btn btn-sm btn-success"><i class="fas fa-file-excel me-1"></i>Export XLSX</a>
                     <a href="index.php?<?php echo http_build_query($log_qs + ['format' => 'pdf']); ?>" class="btn btn-sm btn-danger"><i class="fas fa-file-pdf me-1"></i>Export PDF</a>
@@ -187,6 +203,7 @@
                 <span>
                     <?php
                         $log_qs = ['page' => 'attendance', 'action' => 'exportLog', 'log' => 'person', 'period' => $period];
+                        if ($log_plant !== '') $log_qs['log_plant'] = $log_plant;
                     ?>
                     <a href="index.php?<?php echo http_build_query($log_qs + ['format' => 'xlsx']); ?>" class="btn btn-sm btn-success"><i class="fas fa-file-excel me-1"></i>Export XLSX</a>
                     <a href="index.php?<?php echo http_build_query($log_qs + ['format' => 'pdf']); ?>" class="btn btn-sm btn-danger"><i class="fas fa-file-pdf me-1"></i>Export PDF</a>
