@@ -52,6 +52,45 @@
 
 ## ✅ Selesai
 
+### 2026-08-04 — Redesign total UI dashboard (enterprise modern)
+- **Pendekatan isolasi**: semua redesign diletakkan di file baru
+  `public/assets/dashboard.css` (design system lengkap, font Inter
+  self-hosted di `public/assets/fonts/inter/Inter-Variable.woff2`).
+  Hanya `layout.php` (dashboard admin) yang me-load `dashboard.css`;
+  `templates/plant_display.php` tetap me-load `style.css` lama →
+  Plant Display & Mobile App **tidak terpengaruh sama sekali**.
+- **Design system**: tokens CSS (warna `#F8FAFC` bg, slate sidebar
+  `#0F172A`, accent indigo `#6366F1`), 8-point spacing, border-radius
+  20px, shadow berlapis soft, font Inter variable (400–800) self-host.
+- **Stat Card (KPI) — prioritas**: tinggi dikecilkan 25–35%
+  (`min-height: clamp(134px,16vh,166px)`), ukuran identik & sejajar
+  (grid 4→2→1 tetap), icon chip glass kecil kanan-atas, icon transparan
+  besar background kanan-bawah (rotate -14°), judul 13px uppercase
+  clamp 2 baris, angka 30–36px weight 800, link "Selengkapnya" dipatok
+  bawah + arrow, accent gradient modern (emerald/indigo/rose/amber),
+  hover lift -5px + shadow dalam + cursor pointer. Markup baru
+  (`stat-chip`/`stat-label`/`stat-value`/`stat-link`) di dashboard.php;
+  ID update JS (`man-hours`, `total-contractors`, `total-violations`)
+  tetap, tanpa perubahan logika.
+- **Typography**: Inter; navbar 14–15px, sidebar 13.5px, button 13px,
+  card title 13–14px, table header/content 13px, label/input 13px,
+  badge 12px, chart legend 12px.
+- **Komponen**: tabel compact rounded-header + hover row; button
+  gradient + ripple effect (JS ringan di layout.php) + glass hover +
+  shadow + transisi 250ms + min-height 40px (a11y); form focus ring
+  indigo; badge soft pill; alert tinted; modal glass 20px; accordion;
+  pagination rounded; dropdown glass; navbar 62px sticky glass +
+  avatar inisial; sidebar compact icon rata + active accent glow;
+  chart 15% lebih pendek (`clamp(172px,26vw,272px)`) + legend kecil;
+  login card glass dengan radial gradient background.
+- **Aksesibilitas**: `:focus-visible` outline global, button
+  min-height 40px, kontras teks diperbaiki, `prefers-reduced-motion`
+  dimatikan semua animasi.
+- Diverifikasi: login 302 → dashboard 200, 4 stat-card, 2 chart,
+  `dashboard.css` 200, font 200, plant-display tetap `style.css?v=2`
+  (tanpa `dashboard.css`), halaman contractors 200. `php -l` bersih.
+- Catatan: user test `ui.test@example.com` dihapus setelah verifikasi.
+
 ### 2026-08-04 — "Selesaikan semua": regression test OCR permanen, fix NIK ber-spasi, lint mobile, query plant-display
 - **OCR → test permanen**: `parseKtpRawText()` diekstrak di `lib/ocr.ts`
   sebagai fungsi murni (tanpa engine/browser), dipakai `recognizeOnce` dan

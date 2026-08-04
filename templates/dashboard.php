@@ -30,45 +30,49 @@
 <div class="row stat-grid">
     <!-- MAN HOURS WITHOUT LTI -->
     <div class="col-md-4">
-        <div class="card stat-card bg-gradient-success hvr-grow animate__animated animate__fadeInUp mb-3">
-            <i class="fas fa-shield-alt card-icon-bg"></i>
+        <div class="card stat-card bg-gradient-success hvr-grow animate__animated animate__fadeInUp">
+            <span class="stat-chip"><i class="fas fa-shield-alt" aria-hidden="true"></i></span>
+            <i class="fas fa-shield-alt card-icon-bg" aria-hidden="true"></i>
             <div class="card-body">
-                <h5 class="card-title">MAN HOURS WITHOUT LTI</h5>
-                <p class="card-text fs-2" id="man-hours"><?php echo number_format($settings['plant_working_hours'] ?? 0, 0, ',', '.'); ?></p>
-                <a href="index.php?page=attendance">selengkapnya <i class="bi bi-arrow-right-circle"></i></a>
+                <div class="stat-label">Man Hours Without LTI</div>
+                <div class="stat-value" id="man-hours"><?php echo number_format($settings['plant_working_hours'] ?? 0, 0, ',', '.'); ?></div>
+                <a class="stat-link" href="index.php?page=attendance">Selengkapnya <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
             </div>
         </div>
     </div>
     <!-- TOTAL KONTRAKTOR DALAM PLANT -->
     <div class="col-md-4">
-        <div class="card stat-card bg-gradient-primary hvr-grow animate__animated animate__fadeInUp mb-3">
-            <i class="fas fa-users card-icon-bg"></i>
+        <div class="card stat-card bg-gradient-primary hvr-grow animate__animated animate__fadeInUp">
+            <span class="stat-chip"><i class="fas fa-users" aria-hidden="true"></i></span>
+            <i class="fas fa-users card-icon-bg" aria-hidden="true"></i>
             <div class="card-body">
-                <h5 class="card-title">TOTAL KONTRAKTOR DALAM PLANT</h5>
-                <p class="card-text fs-2" id="total-contractors"><?php echo $total_contractors_in_plant; ?></p>
-                <a href="index.php?page=plant_contractors">selengkapnya <i class="bi bi-arrow-right-circle"></i></a>
+                <div class="stat-label">Total Kontraktor Dalam Plant</div>
+                <div class="stat-value" id="total-contractors"><?php echo $total_contractors_in_plant; ?></div>
+                <a class="stat-link" href="index.php?page=plant_contractors">Selengkapnya <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
             </div>
         </div>
     </div>
     <!-- Total Jenis Pelanggaran -->
     <div class="col-md-4">
-        <div class="card stat-card bg-gradient-danger hvr-grow animate__animated animate__fadeInUp mb-3">
-            <i class="fas fa-exclamation-triangle card-icon-bg"></i>
+        <div class="card stat-card bg-gradient-danger hvr-grow animate__animated animate__fadeInUp">
+            <span class="stat-chip"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></span>
+            <i class="fas fa-exclamation-triangle card-icon-bg" aria-hidden="true"></i>
             <div class="card-body">
-                <h5 class="card-title">TOTAL JENIS PELANGGARAN</h5>
-                <p class="card-text fs-2" id="total-violations"><?php echo str_pad($total_violations, 3, '0', STR_PAD_LEFT); ?></p>
-                <a href="index.php?page=settings&action=violations">selengkapnya <i class="bi bi-arrow-right-circle"></i></a>
+                <div class="stat-label">Total Jenis Pelanggaran</div>
+                <div class="stat-value" id="total-violations"><?php echo str_pad($total_violations, 3, '0', STR_PAD_LEFT); ?></div>
+                <a class="stat-link" href="index.php?page=settings&action=violations">Selengkapnya <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
             </div>
         </div>
     </div>
     <!-- Man Power Expired -->
     <div class="col-md-4">
-        <div class="card stat-card bg-gradient-warning hvr-grow animate__animated animate__fadeInUp mb-3">
-            <i class="fas fa-id-card-alt card-icon-bg"></i>
+        <div class="card stat-card bg-gradient-warning hvr-grow animate__animated animate__fadeInUp">
+            <span class="stat-chip"><i class="fas fa-id-card-alt" aria-hidden="true"></i></span>
+            <i class="fas fa-id-card-alt card-icon-bg" aria-hidden="true"></i>
             <div class="card-body">
-                <h5 class="card-title">MAN POWER EXPIRED</h5>
-                <p class="card-text fs-2" id="total-expired"><?php echo str_pad($total_expired, 3, '0', STR_PAD_LEFT); ?></p>
-                <a href="index.php?page=expired_contractors">segera perpanjang <i class="bi bi-arrow-right-circle"></i></a>
+                <div class="stat-label">Man Power Expired</div>
+                <div class="stat-value" id="total-expired"><?php echo str_pad($total_expired, 3, '0', STR_PAD_LEFT); ?></div>
+                <a class="stat-link" href="index.php?page=expired_contractors">Segera Perpanjang <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
             </div>
         </div>
     </div>
@@ -82,7 +86,7 @@
                 <h5><i class="fas fa-chart-pie me-2 text-primary"></i>Distribusi Kontraktor per Plant</h5>
             </div>
             <div class="card-body d-flex flex-column">
-                <div class="chart-container" style="position: relative; height:300px; width:100%">
+                <div class="chart-container">
                     <canvas id="plantPieChart"></canvas>
                 </div>
             </div>
@@ -95,7 +99,7 @@
                 <h5><i class="fas fa-chart-bar me-2 text-success"></i>Jumlah Kontraktor per Perusahaan</h5>
             </div>
             <div class="card-body d-flex flex-column">
-                <div class="chart-container" style="position: relative; height:300px; width:100%">
+                <div class="chart-container">
                     <canvas id="companyBarChart"></canvas>
                 </div>
             </div>
@@ -163,6 +167,13 @@ document.addEventListener('DOMContentLoaded', function () {
             plugins: {
                 legend: {
                     position: 'top',
+                    labels: {
+                        font: { size: 12, family: 'Inter, sans-serif', weight: 500 },
+                        boxWidth: 9,
+                        boxHeight: 9,
+                        usePointStyle: true,
+                        padding: 14
+                    }
                 }
             }
         }
@@ -187,14 +198,19 @@ document.addEventListener('DOMContentLoaded', function () {
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
-                legend: {
-                    display: false
-                }
+                legend: { display: false }
             },
             scales: {
                 y: {
-                    beginAtZero: true
+                    beginAtZero: true,
+                    grid: { color: 'rgba(15, 23, 42, 0.06)' },
+                    ticks: { font: { size: 12 } }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 12 } }
                 }
             }
         }

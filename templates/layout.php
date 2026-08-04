@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="assets/css/all.min.css">
     <link rel="stylesheet" href="assets/css/animate.min.css">
     <link rel="stylesheet" href="assets/css/hover-min.css">
-    <link rel="stylesheet" href="assets/style.css?v=5">
+    <link rel="stylesheet" href="assets/dashboard.css?v=1">
 </head>
 <body>
     <?php if (isset($_SESSION['user_id'])): ?>
@@ -70,10 +70,10 @@
                 <span class="navbar-brand"><?php echo ucfirst($currentPage); ?></span>
                 <div class="dropdown ms-auto">
                     <a href="#" class="d-flex align-items-center text-dark text-decoration-none dropdown-toggle" id="dropdownUser1" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-person-circle fs-4 me-2"></i>
+                        <span class="avatar" aria-hidden="true"><?php echo htmlspecialchars(strtoupper(mb_substr($_SESSION['user_name'], 0, 1))); ?></span>
                         <strong><?php echo htmlspecialchars($_SESSION['user_name']); ?></strong>
                     </a>
-                    <ul class="dropdown-menu dropdown-menu-end text-small shadow" aria-labelledby="dropdownUser1">
+                    <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="dropdownUser1">
                         <li><a class="dropdown-item" href="index.php?page=logout">Sign out</a></li>
                     </ul>
                 </div>
@@ -149,6 +149,21 @@
 
             window.addEventListener('resize', syncCollapseState);
             applyCollapsedState();
+
+            // Button ripple micro-interaction
+            document.addEventListener('click', function (e) {
+                const btn = e.target.closest('.btn');
+                if (!btn) return;
+                const rect = btn.getBoundingClientRect();
+                const d = Math.max(rect.width, rect.height);
+                const span = document.createElement('span');
+                span.className = 'ripple';
+                span.style.width = span.style.height = d + 'px';
+                span.style.left = (e.clientX - rect.left - d / 2) + 'px';
+                span.style.top = (e.clientY - rect.top - d / 2) + 'px';
+                btn.appendChild(span);
+                setTimeout(function () { span.remove(); }, 600);
+            });
         });
     </script>
 </body>
