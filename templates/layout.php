@@ -7,7 +7,7 @@
     <link href="assets/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/bootstrap-icons.min.css">
     <link rel="stylesheet" href="assets/css/all.min.css">
-    <link rel="stylesheet" href="assets/style.css?v=2">
+    <link rel="stylesheet" href="assets/style.css?v=3">
 </head>
 <body>
     <?php if (isset($_SESSION['user_id'])): ?>
