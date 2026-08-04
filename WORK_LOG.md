@@ -131,6 +131,31 @@
   superadmin sukses, mismatch & password pendek ditolak. `php -l` bersih
   untuk controller, router, dan template.
 
+### 2026-08-04 — UI Responsif & Fleksibel untuk semua menu (selain plant-display)
+- **CSS fluid layer baru** (`style.css` section 23): variabel CSS
+  (`--sidebar-w: clamp(210px,16vw,264px)`, `--content-pad`,
+  `--font-body`, dsb.), tipografi fluid (`clamp()`), sidebar &
+  main-content proporsional, `overflow-x` global dicegah.
+- **Sidebar** (`layout.php`): dikelompokkan (Menu / Pengaturan / Lainnya),
+  label teks dibungkus `<span>` agar bisa disembunyikan di mode mini,
+  scroll internal, dan tombol toggle kini tampil di SEMUA ukuran layar —
+  di desktop menyusut ke icon-only (state disimpan di `localStorage`),
+  di mobile jadi drawer + overlay (perilaku lama dipertahankan).
+- **Navbar** sticky di atas, brand + user menu fleksibel (wrap).
+- **Dashboard**: 4 kartu statistik jadi grid `auto-fit` (otomatis 4→2→1
+  kolom mengikuti lebar layar); tinggi chart pakai `clamp()`.
+- **Tabel**: semua tabel dibungkus `.table-responsive` (yang belum:
+  settings/companies, violations, users — sisanya sudah) supaya tidak
+  melebihi layar & bisa scroll horizontal halus di HP.
+- **Modal/form/alert/kartu/filter**: `max-width` modal dibatasi viewport
+  (`min(96vw, ...)`), spacing pakai `clamp()`, header & tombol wrap.
+- **Login**: wrapper `.login-wrapper` (flex centering responsif) + lebar
+  kartu `min(22rem, 100%)`.
+- **Verifikasi**: php -l bersih; render via `php -S` + login user temp —
+  dashboard/contractors/attendance/plant_contractors/expired/sanctions
+  semua memuat sidebar baru (sidebar-inner, sidebar-group-title, toggle),
+  tabel settings sudah ter-wrapper, dashboard memuat stat-grid.
+
 ### 2026-08-04 — Histori sanksi per-orangan di dashboard (fix tombol "History Sanksi")
 - **Bug**: tombol "History Sanksi" di daftar kontraktor (`templates/contractors/list.php`,
   `expired.php`) menuju `index.php?page=sanctions&action=history&contractor_id=X`,

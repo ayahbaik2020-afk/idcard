@@ -3,6 +3,7 @@
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createCompanyModal">Tambah Perusahaan</button>
 </div>
 
+<div class="table-responsive">
 <table class="table table-striped">
     <thead>
         <tr>
@@ -22,6 +23,7 @@
         <?php endforeach; ?>
     </tbody>
 </table>
+</div>
 
 <!-- Create Company Modal -->
 <div class="modal fade" id="createCompanyModal" tabindex="-1">

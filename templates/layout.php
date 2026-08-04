@@ -16,53 +16,57 @@
             <i class="bi bi-person-vcard-fill"></i>
             <span>ID CARD SYSTEM</span>
         </div>
-        <?php $currentPage = $_GET['page'] ?? 'dashboard'; ?>
-        <?php $currentAction = $_GET['action'] ?? ''; ?>
-        <ul class="nav flex-column">
-            <li class="nav-item">
-                <a class="nav-link <?php echo ($currentPage == 'dashboard') ? 'active' : ''; ?>" href="index.php?page=dashboard"><i class="bi bi-speedometer2"></i> Dashboard</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link <?php echo ($currentPage == 'contractors') ? 'active' : ''; ?>" href="index.php?page=contractors"><i class="bi bi-people-fill"></i> Kontraktor</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link <?php echo ($currentPage == 'attendance') ? 'active' : ''; ?>" href="index.php?page=attendance"><i class="bi bi-calendar-check-fill"></i> Kehadiran</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link <?php echo ($currentPage == 'plant_contractors') ? 'active' : ''; ?>" href="index.php?page=plant_contractors"><i class="bi bi-building"></i> Kontraktor di Plant</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link <?php echo ($currentPage == 'expired_contractors') ? 'active' : ''; ?>" href="index.php?page=expired_contractors"><i class="bi bi-exclamation-triangle-fill text-warning"></i> Man Power Expired</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link <?php echo ($currentPage == 'sanctions') ? 'active' : ''; ?>" href="index.php?page=sanctions"><i class="bi bi-exclamation-triangle-fill"></i> Sanksi</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link <?php echo ($currentPage == 'settings' && $currentAction == 'companies') ? 'active' : ''; ?>" href="index.php?page=settings&action=companies"><i class="bi bi-buildings-fill"></i> Perusahaan</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link <?php echo ($currentPage == 'settings' && $currentAction == 'violations') ? 'active' : ''; ?>" href="index.php?page=settings&action=violations"><i class="bi bi-shield-fill-exclamation"></i> Jenis Pelanggaran</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link <?php echo ($currentPage == 'settings' && $currentAction == 'user') ? 'active' : ''; ?>" href="index.php?page=settings&action=user"><i class="bi bi-person-fill-gear"></i> User</a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link <?php echo ($currentPage == 'settings' && $currentAction == 'system') ? 'active' : ''; ?>" href="index.php?page=settings&action=system"><i class="bi bi-gear-fill"></i> Setting</a>
-            </li>
-            
-            <li class="nav-item">
-                <a class="nav-link <?php echo ($currentPage == 'plant-display') ? 'active' : ''; ?>" href="https://192.168.20.17:8443/idcard/index.php?page=plant-display"><i class="bi bi-display"></i> Plant Display</a>
-            </li>
-        </ul>
+        <div class="sidebar-inner">
+            <?php $currentPage = $_GET['page'] ?? 'dashboard'; ?>
+            <?php $currentAction = $_GET['action'] ?? ''; ?>
+            <ul class="nav flex-column">
+                <li class="sidebar-group-title">Menu</li>
+                <li class="nav-item">
+                    <a class="nav-link <?php echo ($currentPage == 'dashboard') ? 'active' : ''; ?>" href="index.php?page=dashboard"><i class="bi bi-speedometer2"></i><span>Dashboard</span></a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link <?php echo ($currentPage == 'contractors') ? 'active' : ''; ?>" href="index.php?page=contractors"><i class="bi bi-people-fill"></i><span>Kontraktor</span></a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link <?php echo ($currentPage == 'attendance') ? 'active' : ''; ?>" href="index.php?page=attendance"><i class="bi bi-calendar-check-fill"></i><span>Kehadiran</span></a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link <?php echo ($currentPage == 'plant_contractors') ? 'active' : ''; ?>" href="index.php?page=plant_contractors"><i class="bi bi-building"></i><span>Kontraktor di Plant</span></a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link <?php echo ($currentPage == 'expired_contractors') ? 'active' : ''; ?>" href="index.php?page=expired_contractors"><i class="bi bi-exclamation-triangle-fill text-warning"></i><span>Man Power Expired</span></a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link <?php echo ($currentPage == 'sanctions') ? 'active' : ''; ?>" href="index.php?page=sanctions"><i class="bi bi-exclamation-triangle-fill"></i><span>Sanksi</span></a>
+                </li>
+                <li class="sidebar-group-title">Pengaturan</li>
+                <li class="nav-item">
+                    <a class="nav-link <?php echo ($currentPage == 'settings' && $currentAction == 'companies') ? 'active' : ''; ?>" href="index.php?page=settings&action=companies"><i class="bi bi-buildings-fill"></i><span>Perusahaan</span></a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link <?php echo ($currentPage == 'settings' && $currentAction == 'violations') ? 'active' : ''; ?>" href="index.php?page=settings&action=violations"><i class="bi bi-shield-fill-exclamation"></i><span>Jenis Pelanggaran</span></a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link <?php echo ($currentPage == 'settings' && $currentAction == 'user') ? 'active' : ''; ?>" href="index.php?page=settings&action=user"><i class="bi bi-person-fill-gear"></i><span>User</span></a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link <?php echo ($currentPage == 'settings' && $currentAction == 'system') ? 'active' : ''; ?>" href="index.php?page=settings&action=system"><i class="bi bi-gear-fill"></i><span>Setting</span></a>
+                </li>
+                <li class="sidebar-group-title">Lainnya</li>
+                <li class="nav-item">
+                    <a class="nav-link <?php echo ($currentPage == 'plant-display') ? 'active' : ''; ?>" href="https://192.168.20.17:8443/idcard/index.php?page=plant-display"><i class="bi bi-display"></i><span>Plant Display</span></a>
+                </li>
+            </ul>
+        </div>
     </div>
     <div class="main-content">
         <nav class="navbar navbar-expand-lg navbar-light bg-light">
             <div class="container-fluid">
-                <button class="btn btn-light d-md-none me-3" type="button" id="sidebar-toggle">
+                <button class="btn btn-light me-3" type="button" id="sidebar-toggle" title="Toggle Sidebar" aria-label="Toggle sidebar">
                     <i class="bi bi-list"></i>
                 </button>
                 <span class="navbar-brand"><?php echo ucfirst($currentPage); ?></span>
-                <div class="dropdown">
+                <div class="dropdown ms-auto">
                     <a href="#" class="d-flex align-items-center text-dark text-decoration-none dropdown-toggle" id="dropdownUser1" data-bs-toggle="dropdown" aria-expanded="false">
                         <i class="bi bi-person-circle fs-4 me-2"></i>
                         <strong><?php echo htmlspecialchars($_SESSION['user_name']); ?></strong>
@@ -104,10 +108,33 @@
             const sidebar = document.querySelector('.sidebar');
             const overlay = document.querySelector('.sidebar-overlay');
 
+            function isMobile() {
+                return window.matchMedia('(max-width: 768px)').matches;
+            }
+
+            function applyCollapsedState() {
+                const collapsed = localStorage.getItem('sidebar-collapsed') === '1';
+                document.body.classList.toggle('sidebar-collapsed', collapsed && !isMobile());
+            }
+
+            function syncCollapseState() {
+                if (!isMobile()) {
+                    sidebar.classList.remove('active');
+                    overlay.classList.remove('active');
+                } else {
+                    document.body.classList.remove('sidebar-collapsed');
+                }
+            }
+
             if (sidebarToggle) {
                 sidebarToggle.addEventListener('click', function() {
-                    sidebar.classList.toggle('active');
-                    overlay.classList.toggle('active');
+                    if (isMobile()) {
+                        sidebar.classList.toggle('active');
+                        overlay.classList.toggle('active');
+                    } else {
+                        const collapsed = document.body.classList.toggle('sidebar-collapsed');
+                        localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
+                    }
                 });
             }
 
@@ -117,6 +144,9 @@
                     overlay.classList.remove('active');
                 });
             }
+
+            window.addEventListener('resize', syncCollapseState);
+            applyCollapsedState();
         });
     </script>
 </body>

@@ -27,7 +27,7 @@
     </div>
 </div>
 
-<div class="row">
+<div class="row stat-grid">
     <!-- MAN HOURS WITHOUT LTI -->
     <div class="col-md-4">
         <div class="card stat-card bg-gradient-success mb-3">

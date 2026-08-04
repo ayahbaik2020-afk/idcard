@@ -18,6 +18,7 @@
 <?php unset($_SESSION['errors']); ?>
 <?php endif; ?>
 
+<div class="table-responsive">
 <table class="table log-table">
     <thead>
         <tr>
@@ -49,6 +50,7 @@
         <?php endforeach; ?>
     </tbody>
 </table>
+</div>
 
 <!-- Create User Modal -->
 <div class="modal fade" id="createUserModal" tabindex="-1">

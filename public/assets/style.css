@@ -687,3 +687,324 @@ body {
     border: none;
 }
 
+/* ============================================================
+   23. FLUID & RESPONSIVE SYSTEM
+   Flexible, proportional layout for every screen resolution.
+   ============================================================ */
+
+:root {
+    --sidebar-w: clamp(210px, 16vw, 264px);
+    --sidebar-w-collapsed: 74px;
+    --content-pad: clamp(14px, 2.2vw, 30px);
+    --gap-sm: clamp(8px, 1vw, 12px);
+    --gap-md: clamp(12px, 1.6vw, 20px);
+    --radius: 12px;
+    --font-body: clamp(0.875rem, 0.42rem + 0.5vw, 0.98rem);
+    --sidebar-z: 1050;
+}
+
+html,
+body {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+body {
+    font-size: var(--font-body);
+}
+
+/* --- Fluid sidebar --- */
+.sidebar {
+    width: var(--sidebar-w);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: width 0.25s ease-in-out, left 0.3s ease-in-out;
+}
+
+.sidebar-inner {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 20px;
+}
+
+.sidebar-group-title {
+    display: block;
+    flex: 0 0 100%;
+    padding: 18px 20px 6px;
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.38);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    margin-bottom: 4px;
+    white-space: nowrap;
+}
+
+.sidebar .nav-link {
+    padding: 13px 20px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.sidebar .nav-link span {
+    transition: opacity 0.2s;
+}
+
+/* Desktop collapsed (mini) sidebar */
+body.sidebar-collapsed .sidebar {
+    width: var(--sidebar-w-collapsed);
+}
+
+body.sidebar-collapsed .sidebar .sidebar-header span,
+body.sidebar-collapsed .sidebar .sidebar-group-title,
+body.sidebar-collapsed .sidebar .nav-link span {
+    display: none;
+}
+
+body.sidebar-collapsed .sidebar .nav-link {
+    justify-content: center;
+    padding: 15px 0;
+}
+
+body.sidebar-collapsed .sidebar .nav-link i {
+    font-size: 1.25rem;
+    margin: 0;
+}
+
+body.sidebar-collapsed .sidebar .sidebar-header {
+    padding: 18px 0;
+}
+
+body.sidebar-collapsed .sidebar .sidebar-header i {
+    font-size: 2rem;
+    margin: 0;
+}
+
+body.sidebar-collapsed .main-content {
+    margin-left: var(--sidebar-w-collapsed);
+}
+
+/* --- Fluid main content --- */
+.main-content {
+    margin-left: var(--sidebar-w);
+    transition: margin-left 0.25s ease-in-out;
+}
+
+.content {
+    padding: var(--content-pad);
+}
+
+.main-content .navbar {
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.navbar-brand {
+    font-size: clamp(1.02rem, 0.95rem + 0.5vw, 1.25rem);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* --- Fluid typography --- */
+.page-title,
+h2.page-title {
+    font-size: clamp(1.15rem, 1rem + 0.7vw, 1.5rem);
+}
+
+/* --- Stat cards: auto-fit responsive grid --- */
+.row.stat-grid,
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+    gap: var(--gap-md);
+}
+
+.stat-grid > div {
+    min-width: 0;
+}
+
+.card.stat-card {
+    height: 100%;
+    margin-bottom: 0 !important;
+}
+
+.card.stat-card .card-text.fs-2 {
+    font-size: clamp(1.55rem, 1.3rem + 1.6vw, 2.5rem) !important;
+}
+
+/* --- Charts --- */
+.chart-container {
+    height: clamp(220px, 32vw, 320px);
+}
+
+/* --- Tables --- */
+.table-responsive {
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+}
+
+/* --- Cards / filters --- */
+.filter-section {
+    padding: clamp(14px, 1.8vw, 20px);
+}
+
+.filter-section form .row {
+    row-gap: 0.75rem;
+}
+
+.card-body {
+    padding: clamp(14px, 1.8vw, 20px);
+}
+
+.card-header {
+    padding: clamp(12px, 1.4vw, 16px) clamp(14px, 1.8vw, 20px);
+}
+
+/* --- Modals: always fit the viewport --- */
+.modal-dialog {
+    margin: 1.75rem auto;
+}
+
+.modal-dialog,
+.modal-dialog.modal-sm {
+    max-width: min(96vw, 500px);
+}
+
+.modal-dialog.modal-lg {
+    max-width: min(96vw, 900px);
+}
+
+.modal-dialog.modal-xl {
+    max-width: min(97vw, 1200px);
+}
+
+.modal-content {
+    max-height: calc(100vh - 3.5rem);
+    overflow-y: auto;
+}
+
+/* --- Buttons / action rows: never overflow --- */
+.d-flex.flex-wrap {
+    row-gap: 0.5rem;
+}
+
+.main-content .navbar .container-fluid {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+}
+
+.btn-group,
+.btn-group-vertical {
+    flex-wrap: wrap;
+}
+
+/* --- Banned / sanction cards --- */
+.banned-item {
+    min-width: 0;
+    width: 100%;
+}
+
+.sanctions-cards .col-12 .card .card-body > .d-flex {
+    flex-wrap: wrap;
+    row-gap: 1rem;
+}
+
+/* --- Login page --- */
+.login-wrapper {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--content-pad);
+}
+
+.login-card .card-body {
+    padding: clamp(20px, 4vw, 32px);
+}
+
+/* --- Breadcrumb / header rows --- */
+.d-flex.justify-content-between.align-items-center {
+    flex-wrap: wrap;
+    row-gap: 0.75rem;
+}
+
+/* --- Small screens --- */
+@media (max-width: 768px) {
+    .sidebar {
+        width: min(280px, 85vw);
+        left: -100%;
+    }
+
+    body.sidebar-collapsed .sidebar {
+        width: min(280px, 85vw);
+    }
+
+    .sidebar.active {
+        left: 0;
+    }
+
+    body.sidebar-collapsed .main-content {
+        margin-left: 0;
+    }
+
+    .content {
+        padding: 14px;
+    }
+
+    .stat-grid,
+    .row.stat-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .modal-dialog,
+    .modal-dialog.modal-lg,
+    .modal-dialog.modal-xl {
+        margin: 0.5rem auto;
+    }
+
+    .banned-item {
+        min-width: 0;
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .stat-grid,
+    .row.stat-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .card.stat-card .card-body {
+        padding: 16px;
+    }
+
+    .table-responsive {
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+    }
+
+    .banned-photo,
+    .sanction-photo {
+        width: 110px;
+        height: 140px;
+    }
+}
+
+/* --- Landscape short screens --- */
+@media (max-height: 500px) {
+    .sidebar-header {
+        padding: 12px 16px;
+    }
+
+    .sidebar .nav-link {
+        padding: 10px 20px;
+    }
+}
+

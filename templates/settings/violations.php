@@ -3,6 +3,7 @@
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createViolationModal">Tambah Pelanggaran</button>
 </div>
 
+<div class="table-responsive">
 <table class="table table-striped">
     <thead>
         <tr>
@@ -24,6 +25,7 @@
         <?php endforeach; ?>
     </tbody>
 </table>
+</div>
 
 <!-- Create Violation Modal -->
 <div class="modal fade" id="createViolationModal" tabindex="-1">

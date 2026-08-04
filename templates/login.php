@@ -2,8 +2,8 @@
 $content = '';
 ob_start();
 ?>
-<div class="d-flex align-items-center justify-content-center vh-100">
-    <div class="card login-card" style="width: 22rem;">
+<div class="login-wrapper">
+    <div class="card login-card" style="width: min(22rem, 100%);">
         <div class="card-body">
             <h3 class="card-title text-center mb-4">ID Card System Login</h3>
             <?php if(isset($_GET['error'])): ?>
