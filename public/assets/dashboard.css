@@ -422,28 +422,48 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-w-collapsed); 
 
 /* ============================================================
    5. STAT CARDS  (KPI) — compact · glass · premium · hover lift
+   One shared class => every card has IDENTICAL size.
    ============================================================ */
 .row.stat-grid,
 .stat-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: var(--gap);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    column-gap: 20px;
+    row-gap: 20px;
     margin-left: 0;
     margin-right: 0;
     --bs-gutter-x: 0;
     align-items: stretch;
+    justify-items: stretch;
 }
 
+/* Grid item = the Bootstrap column. Kill Bootstrap col-* width so the
+   card fills its track fully; nothing can widen/narrow it. */
 .row.stat-grid > [class*="col"],
 .stat-grid > [class*="col"] {
+    width: 100% !important;
+    max-width: 100%;
+    min-width: 0;
     padding-left: 0;
     padding-right: 0;
+}
+
+/* The card itself: always 100% of its grid cell, no content-driven size. */
+.row.stat-grid > [class*="col"] > .card,
+.stat-grid > [class*="col"] > .card,
+.stat-grid > .card {
+    width: 100%;
     min-width: 0;
+    max-width: 100%;
+    height: 100%;
 }
 
 .card.stat-card {
     position: relative;
     overflow: hidden;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     height: 100%;
     margin-bottom: 0 !important;
     border: 1px solid var(--glass-border);
@@ -1209,9 +1229,18 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-w-collapsed); 
 }
 
 /* ============================================================
-   21. RESPONSIVE
+   21. RESPONSIVE  (stat cards: 4 -> 4 -> 2 -> 1, always equal)
    ============================================================ */
-@media (max-width: 991.98px) {
+/* Laptop: 4 equal columns */
+@media (max-width: 1399.98px) and (min-width: 992px) {
+    .stat-grid,
+    .row.stat-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+/* Tablet: 2 equal columns */
+@media (max-width: 991.98px) and (min-width: 576px) {
     .stat-grid,
     .row.stat-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -1243,10 +1272,11 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-w-collapsed); 
     .banned-item { min-width: 0; width: 100%; }
 }
 
+/* Mobile: 1 column */
 @media (max-width: 575.98px) {
     .stat-grid,
     .row.stat-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(1, 1fr);
     }
 
     .navbar .dropdown-toggle strong { display: none; }
