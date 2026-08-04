@@ -66,7 +66,7 @@
     --sidebar-w-collapsed: 76px;
     --content-pad: clamp(14px, 2vw, 24px);
     --gap: clamp(16px, 1.8vw, 20px);
-    --nav-h: 62px;
+    --nav-h: 60px;
 
     /* motion */
     --t: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -498,27 +498,27 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-w-collapsed); 
     z-index: 2;
     display: flex;
     flex-direction: column;
-    padding: clamp(16px, 1.6vw, 20px);
-    min-height: clamp(134px, 16vh, 166px);
-    gap: 8px;
+    padding: clamp(12px, 1.4vw, 16px);
+    min-height: clamp(104px, 15vh, 128px);
+    gap: 4px;
 }
 
 /* small glass icon chip (top-right) */
 .stat-chip {
     position: absolute;
-    top: 16px;
-    right: 16px;
+    top: 14px;
+    right: 14px;
     z-index: 2;
-    width: 38px;
-    height: 38px;
-    border-radius: 11px;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
     display: grid;
     place-items: center;
     background: rgba(255, 255, 255, 0.22);
     border: 1px solid rgba(255, 255, 255, 0.3);
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
-    font-size: 1rem;
+    font-size: 0.95rem;
 }
 
 /* big transparent icon in the background */
@@ -541,28 +541,28 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-w-collapsed); 
 
 /* label — small, tracked, clamped to 2 equal lines */
 .card.stat-card .stat-label {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.09em;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
     opacity: 0.92;
-    line-height: 1.35;
-    padding-right: 52px;
+    line-height: 1.25;
+    padding-right: 46px;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    min-height: 2.7em;
-    margin-bottom: 2px;
+    min-height: 2.35em;
+    margin-bottom: 0;
 }
 
 /* number — focused, tighter */
 .card.stat-card .stat-value {
-    font-size: clamp(30px, 2.4vw, 36px);
+    font-size: clamp(26px, 2vw, 32px);
     font-weight: 800;
     letter-spacing: -0.02em;
     line-height: 1;
-    margin: 2px 0 6px;
+    margin: 2px 0 4px;
 }
 
 /* link — pinned to the bottom so all cards align */
@@ -571,7 +571,7 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-w-collapsed); 
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.92);
     text-decoration: none;
@@ -1305,4 +1305,230 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-w-collapsed); 
 @media (max-height: 500px) {
     .sidebar-header { padding: 12px 16px; }
     .sidebar .nav-link { padding: 8px 14px; }
+}
+
+/* ============================================================
+   22. ONE-PAGE DASHBOARD — everything inside one viewport
+   Desktop: NO page scroll. Long data scrolls internally.
+   ============================================================ */
+.content-dashboard {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: clamp(10px, 1.4vw, 16px);
+}
+
+/* Keep the whole app shell locked to one screen on desktop */
+body.page-dashboard .main-content {
+    height: 100vh;
+    overflow: hidden;
+}
+
+.content-dashboard > .alert {
+    padding: 8px 14px;
+    margin-bottom: 10px;
+    font-size: 13px;
+}
+
+.dashboard-grid {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto clamp(200px, 26vh, 260px) minmax(0, 1fr);
+    gap: clamp(10px, 1.4vw, 14px);
+    overflow: hidden;
+}
+
+/* --- 22.1 Mobile App sync bar (70-80px) --- */
+.sync-bar .card-body {
+    padding: 10px 16px;
+    min-height: 72px;
+}
+
+.sync-bar-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.sync-bar-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.sync-bar-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.14), rgba(139, 92, 246, 0.14));
+    color: var(--primary-deep);
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.sync-bar-heading {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+}
+
+.sync-bar-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+}
+
+/* --- 22.2 Stat cards row: one single line, identical boxes --- */
+.dashboard-grid > .stat-grid {
+    grid-template-rows: 1fr;
+}
+
+/* --- 22.3 Charts (reduced height, fills its grid row) --- */
+.chart-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: clamp(10px, 1.4vw, 14px);
+    min-height: 0;
+}
+
+.chart-grid .card {
+    height: 100%;
+    min-height: 0;
+}
+
+.chart-grid .card-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: clamp(10px, 1.2vw, 14px);
+}
+
+.chart-grid .chart-container {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+}
+
+/* --- 22.4 Banned contractors: internal horizontal scroll --- */
+.banned-card {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.banned-card .card-header {
+    flex-shrink: 0;
+    padding: 10px 16px;
+}
+
+.banned-card .card-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    padding: 10px 14px 12px;
+}
+
+.banned-card .banned-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+}
+
+#banned-list {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: clamp(190px, 22vw, 250px);
+    grid-template-columns: none;
+    gap: 14px;
+    align-items: stretch;
+    height: 100%;
+    padding: 2px 4px 10px;
+}
+
+.banned-item {
+    padding: 14px;
+    gap: 8px;
+}
+
+.banned-item div {
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.banned-item .banned-photo,
+.banned-item .banned-photo.rounded-circle {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+}
+
+/* One-page dashboard: tablet & mobile fall back to normal page flow */
+@media (max-width: 991.98px) {
+    body.page-dashboard .main-content {
+        height: auto;
+        overflow: visible;
+    }
+
+    .content-dashboard {
+        overflow: auto;
+        display: block;
+        height: auto;
+        padding: 14px;
+    }
+
+    .dashboard-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        height: auto;
+        min-height: 0;
+    }
+
+    .chart-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .chart-grid .chart-container {
+        height: clamp(180px, 30vw, 240px);
+        flex: none;
+    }
+
+    .banned-card {
+        overflow: visible;
+    }
+
+    .banned-card .card-body {
+        overflow: visible;
+        height: auto;
+    }
+
+    #banned-list {
+        grid-auto-flow: row;
+        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+        height: auto;
+        overflow: visible;
+        padding: 4px;
+    }
+
+    .banned-item .banned-photo,
+    .banned-item .banned-photo.rounded-circle {
+        width: 108px;
+        height: 108px;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .sync-bar-inner {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }

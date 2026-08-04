@@ -1,145 +1,139 @@
-<div class="row mb-3">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <div>
-                    <h5 class="mb-1"><i class="fas fa-sync-alt me-2 text-primary"></i>Sinkronisasi Mobile App</h5>
-                    <small class="text-muted">Kirim data terbaru (blacklist, daftar PT, direktori kontraktor) ke cloud untuk aplikasi mobile. Registrasi dari HP masuk ke sistem secara otomatis via penjadwalan.</small>
-                </div>
-                <div class="text-end">
-                    <?php if (($_SESSION['user_role'] ?? '') === 'Super Admin'): ?>
-                    <div class="d-flex gap-2 justify-content-end flex-wrap">
-                        <button id="sync-push-btn" class="btn btn-primary" type="button">
-                            <i class="fas fa-upload me-1"></i> Kirim
-                        </button>
-                        <button id="sync-pull-btn" class="btn btn-secondary" type="button">
-                            <i class="fas fa-download me-1"></i> Tarik
-                        </button>
+<div class="dashboard-grid">
+
+    <!-- 1. Mobile App Sync Bar -->
+    <div class="card sync-bar">
+        <div class="card-body">
+            <div class="sync-bar-inner">
+                <div class="sync-bar-title">
+                    <span class="sync-bar-icon" aria-hidden="true"><i class="fas fa-sync-alt"></i></span>
+                    <div class="sync-bar-text">
+                        <div class="sync-bar-heading">Sinkronisasi Mobile App</div>
+                        <div class="sync-bar-sub" id="sync-now-status">
+                            <?php if (($_SESSION['user_role'] ?? '') !== 'Super Admin'): ?>Hanya Super Admin yang bisa sync manual<?php endif; ?>
+                        </div>
                     </div>
-                    <div id="sync-now-status" class="small mt-1"></div>
-                    <?php else: ?>
-                    <span class="badge bg-secondary">Hanya Super Admin yang bisa sync manual</span>
-                    <?php endif; ?>
+                </div>
+                <?php if (($_SESSION['user_role'] ?? '') === 'Super Admin'): ?>
+                <div class="d-flex gap-2">
+                    <button id="sync-push-btn" class="btn btn-primary" type="button">
+                        <i class="fas fa-upload me-1"></i> Kirim
+                    </button>
+                    <button id="sync-pull-btn" class="btn btn-secondary" type="button">
+                        <i class="fas fa-download me-1"></i> Tarik
+                    </button>
+                </div>
+                <?php endif; ?>
+            </div>
+            <pre id="sync-now-log" class="d-none m-0 p-3 bg-dark text-light small" style="max-height:180px; overflow:auto;"></pre>
+        </div>
+    </div>
+
+    <!-- 2. Stat Cards -->
+    <div class="row stat-grid">
+        <!-- MAN HOURS WITHOUT LTI -->
+        <div class="col-md-4">
+            <div class="card stat-card bg-gradient-success hvr-grow animate__animated animate__fadeInUp">
+                <span class="stat-chip"><i class="fas fa-shield-alt" aria-hidden="true"></i></span>
+                <i class="fas fa-shield-alt card-icon-bg" aria-hidden="true"></i>
+                <div class="card-body">
+                    <div class="stat-label">Man Hours Without LTI</div>
+                    <div class="stat-value" id="man-hours"><?php echo number_format($settings['plant_working_hours'] ?? 0, 0, ',', '.'); ?></div>
+                    <a class="stat-link" href="index.php?page=attendance">Selengkapnya <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
                 </div>
             </div>
-            <pre id="sync-now-log" class="d-none m-0 p-3 bg-dark text-light small" style="max-height:220px; overflow:auto;"></pre>
+        </div>
+        <!-- TOTAL KONTRAKTOR DALAM PLANT -->
+        <div class="col-md-4">
+            <div class="card stat-card bg-gradient-primary hvr-grow animate__animated animate__fadeInUp">
+                <span class="stat-chip"><i class="fas fa-users" aria-hidden="true"></i></span>
+                <i class="fas fa-users card-icon-bg" aria-hidden="true"></i>
+                <div class="card-body">
+                    <div class="stat-label">Total Kontraktor Dalam Plant</div>
+                    <div class="stat-value" id="total-contractors"><?php echo $total_contractors_in_plant; ?></div>
+                    <a class="stat-link" href="index.php?page=plant_contractors">Selengkapnya <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                </div>
+            </div>
+        </div>
+        <!-- Total Jenis Pelanggaran -->
+        <div class="col-md-4">
+            <div class="card stat-card bg-gradient-danger hvr-grow animate__animated animate__fadeInUp">
+                <span class="stat-chip"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></span>
+                <i class="fas fa-exclamation-triangle card-icon-bg" aria-hidden="true"></i>
+                <div class="card-body">
+                    <div class="stat-label">Total Jenis Pelanggaran</div>
+                    <div class="stat-value" id="total-violations"><?php echo str_pad($total_violations, 3, '0', STR_PAD_LEFT); ?></div>
+                    <a class="stat-link" href="index.php?page=settings&action=violations">Selengkapnya <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                </div>
+            </div>
+        </div>
+        <!-- Man Power Expired -->
+        <div class="col-md-4">
+            <div class="card stat-card bg-gradient-warning hvr-grow animate__animated animate__fadeInUp">
+                <span class="stat-chip"><i class="fas fa-id-card-alt" aria-hidden="true"></i></span>
+                <i class="fas fa-id-card-alt card-icon-bg" aria-hidden="true"></i>
+                <div class="card-body">
+                    <div class="stat-label">Man Power Expired</div>
+                    <div class="stat-value" id="total-expired"><?php echo str_pad($total_expired, 3, '0', STR_PAD_LEFT); ?></div>
+                    <a class="stat-link" href="index.php?page=expired_contractors">Segera Perpanjang <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                </div>
+            </div>
         </div>
     </div>
-</div>
 
-<div class="row stat-grid">
-    <!-- MAN HOURS WITHOUT LTI -->
-    <div class="col-md-4">
-        <div class="card stat-card bg-gradient-success hvr-grow animate__animated animate__fadeInUp">
-            <span class="stat-chip"><i class="fas fa-shield-alt" aria-hidden="true"></i></span>
-            <i class="fas fa-shield-alt card-icon-bg" aria-hidden="true"></i>
-            <div class="card-body">
-                <div class="stat-label">Man Hours Without LTI</div>
-                <div class="stat-value" id="man-hours"><?php echo number_format($settings['plant_working_hours'] ?? 0, 0, ',', '.'); ?></div>
-                <a class="stat-link" href="index.php?page=attendance">Selengkapnya <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
-            </div>
-        </div>
-    </div>
-    <!-- TOTAL KONTRAKTOR DALAM PLANT -->
-    <div class="col-md-4">
-        <div class="card stat-card bg-gradient-primary hvr-grow animate__animated animate__fadeInUp">
-            <span class="stat-chip"><i class="fas fa-users" aria-hidden="true"></i></span>
-            <i class="fas fa-users card-icon-bg" aria-hidden="true"></i>
-            <div class="card-body">
-                <div class="stat-label">Total Kontraktor Dalam Plant</div>
-                <div class="stat-value" id="total-contractors"><?php echo $total_contractors_in_plant; ?></div>
-                <a class="stat-link" href="index.php?page=plant_contractors">Selengkapnya <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
-            </div>
-        </div>
-    </div>
-    <!-- Total Jenis Pelanggaran -->
-    <div class="col-md-4">
-        <div class="card stat-card bg-gradient-danger hvr-grow animate__animated animate__fadeInUp">
-            <span class="stat-chip"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i></span>
-            <i class="fas fa-exclamation-triangle card-icon-bg" aria-hidden="true"></i>
-            <div class="card-body">
-                <div class="stat-label">Total Jenis Pelanggaran</div>
-                <div class="stat-value" id="total-violations"><?php echo str_pad($total_violations, 3, '0', STR_PAD_LEFT); ?></div>
-                <a class="stat-link" href="index.php?page=settings&action=violations">Selengkapnya <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
-            </div>
-        </div>
-    </div>
-    <!-- Man Power Expired -->
-    <div class="col-md-4">
-        <div class="card stat-card bg-gradient-warning hvr-grow animate__animated animate__fadeInUp">
-            <span class="stat-chip"><i class="fas fa-id-card-alt" aria-hidden="true"></i></span>
-            <i class="fas fa-id-card-alt card-icon-bg" aria-hidden="true"></i>
-            <div class="card-body">
-                <div class="stat-label">Man Power Expired</div>
-                <div class="stat-value" id="total-expired"><?php echo str_pad($total_expired, 3, '0', STR_PAD_LEFT); ?></div>
-                <a class="stat-link" href="index.php?page=expired_contractors">Segera Perpanjang <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row">
-<!-- Pie Chart -->
-    <div class="col-md-6 mb-4">
+    <!-- 3. Charts -->
+    <div class="chart-grid">
         <div class="card h-100">
             <div class="card-header">
                 <h5><i class="fas fa-chart-pie me-2 text-primary"></i>Distribusi Kontraktor per Plant</h5>
             </div>
-            <div class="card-body d-flex flex-column">
+            <div class="card-body">
                 <div class="chart-container">
                     <canvas id="plantPieChart"></canvas>
                 </div>
             </div>
         </div>
-    </div>
-    <!-- Bar Chart -->
-    <div class="col-md-6 mb-4">
         <div class="card h-100">
             <div class="card-header">
                 <h5><i class="fas fa-chart-bar me-2 text-success"></i>Jumlah Kontraktor per Perusahaan</h5>
             </div>
-            <div class="card-body d-flex flex-column">
+            <div class="card-body">
                 <div class="chart-container">
                     <canvas id="companyBarChart"></canvas>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<!-- Banned Contractors -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header bg-warning text-dark">
-                <h5><i class="fas fa-user-slash me-2"></i>DAFTAR "BANNED" KONTRAKTOR</h5>
-            </div>
-            <div class="card-body" id="banned-list">
-                <?php foreach ($banned_contractors as $banned): ?>
-                <div class="banned-item">
-                    <?php if (!empty($banned['photo'])):
- ?>
-                        <?php
-                            // NOTE: this vhost's document root already points at the
-                            // `public/` folder, so don't add an extra "/public" segment.
-                            $base_url = 'http://192.168.20.17:8081/idcard';
-                            $photo_src = $base_url . '/uploads/photos/' . htmlspecialchars($banned['photo']);
-                        ?>
-                        <img src="<?php echo $photo_src; ?>" alt="Photo of <?php echo htmlspecialchars($banned['name']); ?>" class="banned-photo rounded-circle" />
-                    <?php else: ?>
-                        <i class="bi bi-person-x-fill fs-1 text-danger"></i>
-                    <?php endif; ?>
-                    <div>
-                        <strong>NAMA:</strong> <?php echo htmlspecialchars($banned['name']); ?><br>
-                        <strong>ID CARD:</strong> <?php echo htmlspecialchars($banned['id_card']); ?><br>
-                        <strong>PERUSAHAAN:</strong> <?php echo htmlspecialchars($banned['company_name']); ?><br>
-                        <strong>REASON:</strong> <?php echo htmlspecialchars($banned['reason']); ?>
-                    </div>
+    <!-- 4. Banned Contractors (internal scroll) -->
+    <div class="card banned-card">
+        <div class="card-header bg-warning">
+            <h5><i class="fas fa-user-slash me-2"></i>Daftar "Banned" Kontraktor</h5>
+        </div>
+        <div class="card-body banned-scroll" id="banned-list">
+            <?php foreach ($banned_contractors as $banned): ?>
+            <div class="banned-item">
+                <?php if (!empty($banned['photo'])): ?>
+                    <?php
+                        // NOTE: this vhost's document root already points at the
+                        // `public/` folder, so don't add an extra "/public" segment.
+                        $base_url = 'http://192.168.20.17:8081/idcard';
+                        $photo_src = $base_url . '/uploads/photos/' . htmlspecialchars($banned['photo']);
+                    ?>
+                    <img src="<?php echo $photo_src; ?>" alt="Photo of <?php echo htmlspecialchars($banned['name']); ?>" class="banned-photo rounded-circle" />
+                <?php else: ?>
+                    <i class="bi bi-person-x-fill fs-1 text-danger"></i>
+                <?php endif; ?>
+                <div>
+                    <strong>NAMA:</strong> <?php echo htmlspecialchars($banned['name']); ?><br>
+                    <strong>ID CARD:</strong> <?php echo htmlspecialchars($banned['id_card']); ?><br>
+                    <strong>PERUSAHAAN:</strong> <?php echo htmlspecialchars($banned['company_name']); ?><br>
+                    <strong>REASON:</strong> <?php echo htmlspecialchars($banned['reason']); ?>
                 </div>
-                <?php endforeach; ?>
             </div>
+            <?php endforeach; ?>
         </div>
     </div>
+
 </div>
 
 <script>

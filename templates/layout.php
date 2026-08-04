@@ -9,9 +9,9 @@
     <link rel="stylesheet" href="assets/css/all.min.css">
     <link rel="stylesheet" href="assets/css/animate.min.css">
     <link rel="stylesheet" href="assets/css/hover-min.css">
-    <link rel="stylesheet" href="assets/dashboard.css?v=2">
+    <link rel="stylesheet" href="assets/dashboard.css?v=3">
 </head>
-<body>
+<body class="<?php echo (($_GET['page'] ?? 'dashboard') === 'dashboard') ? 'page-dashboard' : ''; ?>">
     <?php if (isset($_SESSION['user_id'])): ?>
     <div class="sidebar">
         <div class="sidebar-header">
@@ -79,7 +79,7 @@
                 </div>
             </div>
         </nav>
-        <main class="content">
+        <main class="content<?php echo ($currentPage == 'dashboard') ? ' content-dashboard' : ''; ?>">
             <?php if (!empty($_SESSION['error_message'])): ?>
                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
                     <?php echo htmlspecialchars($_SESSION['error_message']); unset($_SESSION['error_message']); ?>

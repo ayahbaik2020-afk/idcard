@@ -52,6 +52,39 @@
 
 ## ✅ Selesai
 
+### 2026-08-04 — One-Page Dashboard (tanpa scroll desktop)
+- **Target**: seluruh dashboard muat dalam satu layar tanpa vertical
+  scroll pada 1366×768 / 1600×900 / 1920×1080.
+- **Pendekatan**: halaman dashboard diberi body class `page-dashboard`
+  dan `<main>` diberi `content-dashboard` (kondisional di `layout.php`
+  berdasar `$_GET['page']`), sehingga penguncian viewport HANYA berlaku
+  di dashboard — halaman lain tidak terpengaruh.
+  `body.page-dashboard .main-content { height:100vh; overflow:hidden }`,
+  navbar 60px, `.content-dashboard { overflow:hidden; flex column }`.
+- **Struktur grid** `.dashboard-grid` (CSS Grid, tinggi proporsional):
+  `auto` (sync bar 72px) → `auto` (stat card) → `clamp(200px,26vh,260px)`
+  (chart) → `minmax(0,1fr)` (banned, sisa layar). Gap 10–14px.
+- **Stat card**: kompak (min-height `clamp(104px,15vh,128px)`, padding
+  lebih kecil, label 12px fixed 2 baris, angka 26–32px, link 12px) →
+  tetap satu baris 4 kolom, ukuran identik, tidak wrap.
+- **Chart**: tinggi dikurangi ~15–25% (row clamp 26vh, max 260px),
+  legend 12px; chart-container mengisi sisa card body (flex).
+- **Banned Contractor**: diubah jadi **horizontal scroll internal**
+  (grid-auto-flow:column, auto-columns clamp 190–250px, photo bulat
+  76px, scrollbar tipis) — tidak menambah tinggi halaman.
+- **Responsive**: ≥992px = tanpa scroll halaman (scroll internal saja);
+  tablet ≤991px fallback flow normal (scroll ringan, chart 1 kolom,
+  banned jadi grid auto-fill); mobile sync-bar jadi vertikal.
+- Sync bar jadi section kompak (icon glass 40px + judul + status +
+  tombol Kirim/Tarik), teks deskripsi panjang dihilangkan demi density.
+- JS/ID tidak berubah (`sync-push/pull-btn`, `sync-now-status`,
+  `man-hours`, `total-contractors`, `total-violations`, `total-expired`,
+  canvas chart) — verifikasi render 200, semua id/kelas ada,
+  `php -l` bersih, user test dihapus.
+- **Windows Task Scheduler**: task `idcard_mobile_sync` (sync otomatis
+  tiap 10 menit) DIMATIKAN (`schtasks /change /disable`) atas permintaan
+  user — sinkronisasi kini manual (tombol Kirim/Tarik di dashboard).
+
 ### 2026-08-04 — Redesign total UI dashboard (enterprise modern)
 - **Pendekatan isolasi**: semua redesign diletakkan di file baru
   `public/assets/dashboard.css` (design system lengkap, font Inter
