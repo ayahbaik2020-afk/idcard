@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="assets/css/all.min.css">
     <link rel="stylesheet" href="assets/css/animate.min.css">
     <link rel="stylesheet" href="assets/css/hover-min.css">
-    <link rel="stylesheet" href="assets/style.css?v=4">
+    <link rel="stylesheet" href="assets/style.css?v=5">
 </head>
 <body>
     <?php if (isset($_SESSION['user_id'])): ?>
