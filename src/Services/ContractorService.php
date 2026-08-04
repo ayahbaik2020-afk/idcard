@@ -361,6 +361,11 @@ class ContractorService
         $data['photo'] = $localFacePhotoPath ? $this->storeLocalImageCopy($localFacePhotoPath, $data['ktp_no']) : null;
         $data['qr_code'] = $this->generateQrCode($data['id_card']);
         $data['registration_date'] = $data['registration_date'] ?? date('Y-m-d');
+        // Default 1 bulan masa aktif untuk registrasi dari mobile app, supaya
+        // setiap kartu baru selalu punya expiry_date (aplikasi offline/sync
+        // tidak menangani NULL). Admin bisa ubah tanggalnya di dashboard.
+        $data['expiry_date'] = $data['expiry_date']
+            ?? date('Y-m-d', strtotime('+1 month', strtotime($data['registration_date'])));
         $data['status'] = $data['status'] ?? 'Active';
         // alamat is optional (OCR may not have read it); passed through as-is.
 
@@ -373,9 +378,8 @@ class ContractorService
     /**
      * Re-activates an existing (expired) contractor from the mobile app:
      * issues a brand new ID Card number + QR code, deletes the old QR file
-     * (physical card replaced), updates profile/photo, and resets
-     * expiry_date to NULL so the card is active until the admin sets a new
-     * date in the dashboard after sync.
+     * (physical card replaced), updates profile/photo, and sets a default
+     * 1-month expiry_date (never NULL), same as a fresh mobile registration.
      */
     private function reactivateFromMobile(array $existing, array $data, ?string $localFacePhotoPath): array
     {
@@ -406,6 +410,9 @@ class ContractorService
             'photo' => $photo,
             'id_card' => $newIdCard,
             'qr_code' => $newQrCode,
+            // Default 1 bulan masa aktif (sama seperti registrasi baru dari
+            // mobile) — kartu tidak lagi dibuat tanpa expiry_date.
+            'expiry_date' => date('Y-m-d', strtotime('+1 month')),
             'mobile_sync_id' => $data['mobile_sync_id'],
         ]);
         $this->contractorRepo->logActivity('update', 'contractors', $existing['id'], "Re-aktivasi via mobile sync: ID Card {$existing['id_card']} -> {$newIdCard}");

@@ -78,13 +78,13 @@
                 <td><?php echo htmlspecialchars($contractor['id_card']); ?></td>
                 <td><?php echo htmlspecialchars($contractor['name']); ?></td>
                 <td><?php echo htmlspecialchars($contractor['company_name']); ?></td>
-                <td><?php echo htmlspecialchars($contractor['plant_location']); ?></td>
+                <td><?php echo htmlspecialchars($contractor['plant_location'] ?? ''); ?></td>
                 <td>
                     <span class="badge bg-<?php echo $contractor['status'] == 'Active' ? 'success' : ($contractor['status'] == 'Banned' ? 'danger' : 'secondary'); ?>">
                         <?php echo htmlspecialchars($contractor['status']); ?>
                     </span>
                 </td>
-                <td><?php echo htmlspecialchars($contractor['expiry_date']); ?></td>
+                <td><?php echo htmlspecialchars($contractor['expiry_date'] ?? ''); ?></td>
                 <td>
                     <span class="badge bg-warning text-dark">
                         <?php echo $days_overdue; ?> hari

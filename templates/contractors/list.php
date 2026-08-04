@@ -105,7 +105,7 @@
                     <td><?php echo htmlspecialchars($contractor['id_card']); ?></td>
                     <td><?php echo htmlspecialchars($contractor['name']); ?></td>
                     <td><?php echo htmlspecialchars($contractor['company_name']); ?></td>
-                    <td><?php echo htmlspecialchars($contractor['plant_location']); ?></td>
+                    <td><?php echo htmlspecialchars($contractor['plant_location'] ?? ''); ?></td>
                     <td>
                         <span class="badge bg-<?php echo $contractor['status'] == 'Active' ? 'success' : ($contractor['status'] == 'Banned' ? 'danger' : 'secondary'); ?>">
                             <?php echo htmlspecialchars($contractor['status']); ?>
@@ -113,7 +113,7 @@
                     </td>
                     <td><?php echo htmlspecialchars($contractor['registration_date']); ?></td>
                     <td>
-                        <?php echo htmlspecialchars($contractor['expiry_date']); ?>
+                        <?php echo htmlspecialchars($contractor['expiry_date'] ?? ''); ?>
                         <?php if (!empty($contractor['expiry_date']) && $contractor['expiry_date'] < date('Y-m-d')): ?>
                             <span class="badge bg-warning text-dark ms-1">Expired</span>
                         <?php endif; ?>

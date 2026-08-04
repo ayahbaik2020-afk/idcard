@@ -84,6 +84,30 @@
   memuat marker `kena sanksi` (commit `1639d6f`). Deploy sinkron; akses
   akun tetap hal yang harus dilakukan pemilik akun secara manual.
 
+### 2026-08-04 — Default masa aktif 1 bulan untuk registrasi mobile + fix deprecation `htmlspecialchars(null)`
+- **Bug**: registrasi man power via app mobile (baru) dan re-aktivasi
+  (perpanjangan KTP yang sudah expired) memasukkan `expiry_date = NULL` ke
+  tabel `contractors` (`insertContractorFromMobile` / `renewFromMobile`),
+  sehingga kartu tidak punya tanggal kadaluarsa dan proses penarikan data /
+  aplikasi offline bisa error saat membaca kolom NULL.
+- **Fix**: `ContractorService::createFromMobileSync()` kini default
+  `expiry_date` = `registration_date + 1 bulan` (atau +1 bulan dari hari
+  ini) kalau mobile tidak mengirim tanggal sendiri; `reactivateFromMobile()`
+  mengirim `expiry_date = +1 bulan` ke `renewFromMobile()`; `renewFromMobile()`
+  menyimpan nilai tersebut (bukan lagi `NULL`). Admin tetap bisa ubah tanggal
+  di dashboard.
+- **Verifikasi**: test transaksi (rollback, tanpa polusi DB) lewat
+  `createFromMobileSync` — registrasi baru: `registration_date=2026-08-04`,
+  `expiry_date=2026-09-04` ✓; re-aktivasi (KTP sama, expiry lama `2000-01-01`):
+  `expiry_date` jadi `2026-09-04` + status `Active` ✓. `php -l` bersih.
+- **Deprecation fix**: `templates/contractors/list.php:116` dan
+  `expired.php` memanggil `htmlspecialchars()` pada `expiry_date` /
+  `plant_location` yang bisa `NULL` (PHP 8.1+ deprecation) — kini
+  di-guard dengan `?? ''`. `php -l` bersih.
+- **Catatan**: sisi mobile (`check-ktp` route) sudah defensif terhadap NULL
+  (`expiry_date ?? null`, `expired` dievaluasi hanya kalau tanggal ada),
+  jadi tidak ada perubahan di mobile-app untuk bug ini.
+
 ### 2026-08-04 — Histori sanksi per-orangan di dashboard (fix tombol "History Sanksi")
 - **Bug**: tombol "History Sanksi" di daftar kontraktor (`templates/contractors/list.php`,
   `expired.php`) menuju `index.php?page=sanctions&action=history&contractor_id=X`,

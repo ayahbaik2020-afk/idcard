@@ -267,16 +267,16 @@ class ContractorRepository
      * Re-activates an existing contractor from the mobile app: issues a
      * brand new id_card + qr_code (the old physical card is replaced),
      * updates profile/photo, and records which staging_contractors row it
-     * came from. expiry_date is deliberately reset to NULL so the card is
-     * treated as active until the admin sets a new date - same behaviour
-     * as a fresh mobile registration.
+     * came from. expiry_date is set to the default 1-month active window
+     * passed by the service (never NULL), so the offline app / sync flow
+     * always has a valid date.
      */
     public function renewFromMobile($id, $data)
     {
-        $stmt = $this->pdo->prepare("UPDATE contractors SET name = ?, ktp_no = ?, alamat = ?, company_id = ?, plant_location = ?, registration_date = ?, status = 'Active', expiry_date = NULL, id_card = ?, photo = ?, qr_code = ?, mobile_sync_id = ?, synced_at = NOW() WHERE id = ?");
+        $stmt = $this->pdo->prepare("UPDATE contractors SET name = ?, ktp_no = ?, alamat = ?, company_id = ?, plant_location = ?, registration_date = ?, status = 'Active', expiry_date = ?, id_card = ?, photo = ?, qr_code = ?, mobile_sync_id = ?, synced_at = NOW() WHERE id = ?");
         $stmt->execute([
             $data['name'], $data['ktp_no'], $data['alamat'], $data['company_id'],
-            $data['plant_location'], date('Y-m-d'), $data['id_card'],
+            $data['plant_location'], date('Y-m-d'), $data['expiry_date'] ?? null, $data['id_card'],
             $data['photo'], $data['qr_code'], $data['mobile_sync_id'], $id
         ]);
     }
