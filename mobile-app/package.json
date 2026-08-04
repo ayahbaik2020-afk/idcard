@@ -6,7 +6,8 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:ocr": "node scripts/test-ocr-parse.mts"
   },
   "dependencies": {
     "@paddleocr/paddleocr-js": "^0.4.2",

@@ -107,6 +107,19 @@ function extractNik(text: string, lines: string[]): string {
       }
     }
     if (firstValidLength) return firstValidLength;
+
+    // Slow path: OCR scattered the digits with stray spaces (seen in
+    // practice as "NIK : 3 6 7 2 0 5 1 8 0 2 8 4 0 0 0 1"), which breaks
+    // the contiguous-run regex above. Collect every digit-like character
+    // from the NIK line + next line and scan for a plausible window.
+    const scattered = nearby.match(/[\dOoQDiIlL|!zZsSbBgG?]/g);
+    if (scattered) {
+      const normalized = digitsOnly(normalizeOcrDigits(scattered.join("")));
+      if (normalized.length >= 16) {
+        const windowed = bestNikWindow(normalized);
+        if (isPlausibleNik(windowed)) return windowed;
+      }
+    }
   }
 
   // Last resort #1: pure digit-with-spaces run anywhere in the document
@@ -463,6 +476,18 @@ const RECOVERY_PREDICT_PARAMS: OcrRuntimeParamsInput = {
   textRecScoreThresh: 0.05
 };
 
+/** Pure raw-text -> NIK/Nama/Alamat parsing, split out from recognizeOnce
+ * so it can be unit-tested offline (no OCR engine, no browser) against
+ * real device raw text. The input is expected to be the OCR lines joined
+ * with "\n" (the same shape recognizeOnce feeds it). */
+export function parseKtpRawText(
+  rawText: string
+): Pick<KtpOcrResult, "nik" | "nama" | "alamat"> {
+  const lines = rawText.split("\n");
+  const { nama, alamat } = extractNamaAlamat(lines);
+  return { nik: extractNik(rawText, lines), nama, alamat };
+}
+
 async function recognizeOnce(
   engine: OcrEngine,
   image: Blob,
@@ -483,10 +508,8 @@ async function recognizeOnce(
 
   try {
     const [result] = await engine.predict(image, params);
-    const lines = itemsToLines(result.items);
-    const text = lines.join("\n");
-    const { nama, alamat } = extractNamaAlamat(lines);
-    return { nik: extractNik(text, lines), nama, alamat, rawText: text };
+    const text = itemsToLines(result.items).join("\n");
+    return { ...parseKtpRawText(text), rawText: text };
   } finally {
     clearInterval(timer);
   }

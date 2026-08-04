@@ -18,81 +18,71 @@
 > asumsi awal dari diskusi 2026-08-01 — sesuaikan kalau ada
 > pertimbangan lain dari lapangan.
 
-1. **[Akurasi OCR] Perlu 1 putaran tes fisik lagi untuk konfirmasi
-   akhir** (lihat entri Selesai 2026-08-05 "lanjutan 2" untuk detail
-   fix-nya). NIK & Alamat sudah dikonfirmasi cocok 100% terhadap raw
-   OCR text fisik yang dikirim user (bukan lagi simulasi/asumsi).
-   Yang masih perlu diverifikasi user: (a) apakah Nama sekarang
-   terbaca dengan foto/pencahayaan yang lebih baik (kali ini sengaja
-   dibiarkan kosong karena datanya sendiri tidak terbaca sama sekali
-   di foto itu, bukan bug), (b) coba beberapa KTP/kondisi cahaya lain
-   untuk lihat apakah fix `b→6` di NIK tidak menimbulkan masalah baru
-   di kasus lain.
-   - **Update 2026-08-05 (lanjutan 3)**: user lapor Nama masih tidak
-     terbaca dan kirim raw OCR text yang sama persis dengan tes fisik
-     pertama. Ditemukan kemungkinan akar masalah baru: commit `a796a93`
-     (dari sesi lain, WIP tanpa bukti fisik) **me-revert CLAHE**
-     (commit `0895966`, yang sudah terbukti offline menang telak
-     side-by-side pada foto fisik yang sama — Nama "MAMAN" terbaca)
-     kembali ke **contrast stretch GLOBAL berbasis Otsu** (satu kurva
-     untuk seluruh kartu) + menurunkan resolusi cap 2200px→1600px.
-     Tes fisik pertama terjadi SETELAH revert itu — dan gejalanya
-     persis yang CLAHE perbaiki (Nama jadi "i" murni noise, tidak
-     terbaca). CLAHE di-restore kembali di `lib/ocr.ts` (plus
-     komentar yang mendokumentasikan kenapa revert `a796a93` keliru),
-     semua perbaikan parsing terbaru (b→6, fuzzy label, filter noise,
-     two-pass OCR) dipertahankan. Build & eslint bersih. **Masih perlu
-     dites di HP fisik** — prediksi: Nama kini terbaca karena
-     preprocessing-nya yang dulu terbukti membaca Nama di foto ini.
-   - **Update 2026-08-05 (lanjutan 4)**: user tes lagi setelah restore
-     CLAHE — **Nama BERHASIL terbaca** (`MAMAN`) di HP fisik, persis
-     prediksi di atas. Terima kasih bukti fisik baru. Dua temuan lain
-     di raw text tes itu lalu diperbaiki: (a) label "NIK" bisa salah
-     terbaca jadi `ik` (huruf N hilang) — `extractNik` sekarang
-     memakai `findFuzzyLabel(line, "NIK", 1)` sebagai fallback supaya
-     baris NIK tetap ditemukan; (b) label boundary RT/RW & Kel/Desa
-     bisa salah terbaca (`RIAW`, `KeiDesa`) dan bikin Alamat nyerap
-     baris-baris di bawahnya — helper baru `isBoundaryLine()` pakai
-     fuzzy-match per-kata ke bentuk compact (`RTRW`, `KELDESA`, dst.)
-     di samping regex `OTHER_LABEL` yang sudah ada. Diverifikasi
-     offline: raw text fisik baru → Alamat sekarang berhenti tepat di
-     `RIAW`/`KeiDesa` (tidak lagi menelan `020/006`, `1EBAKDENOKE`,
-     dst.), semua regression case lama (tes fisik pertama, galeri,
-     "Alama" fuzzy, NIK berisi 8 asli, nama ber-noise, label NIK
-     hilang) tetap lolos. Build & eslint bersih. Catatan jujur: NIK
-     masih kosong di foto tes terbaru itu karena **level OCR** — run
-     digit `3L,72051.50254808` cuma menghasilkan 15 digit (koma/titik
-     + digit hilang), jadi secara desain sengaja tidak diisi sampah
-     (user perlu foto ulang yang lebih jelas untuk NIK).
-2. **Deploy Vercel (`idcard-brown-delta`) sempat 2 commit tertinggal**
-   — **dicek 2026-08-04**: akun Vercel yang terhubung ke sesi kerja ini
-   (`ayahbaik's projects`) cuma punya akses ke project `sikara`, TIDAK
-   ada akses ke `idcard-brown-delta` sama sekali (`list_projects` &
-   `list_teams` tidak menampilkannya). Ini mendukung dugaan awal:
-   project itu kemungkinan di bawah akun/tim Vercel lain (mungkin akun
-   `IT-Merak` sendiri, terpisah dari akun yang terhubung ke sesi kerja
-   ini). **Perlu dicek manual oleh pemilik akun**: Vercel dashboard →
-   project `idcard-brown-delta` → Settings → Git (siapa yang terhubung)
-   dan tab Deployments (cari status "Skipped").
-   - **Update 2026-08-05**: verifikasi dari sisi live site ternyata
-     deploy **sudah up-to-date dengan `origin/main` (HEAD `4a74055`)**.
-     Dicek bundle JS yang sedang live (`idcard-brown-delta.vercel.app`):
-     marker `[bBgG]/g,"6"` (fix NIK b→6, commit `4a74055`), filter noise
-     `cleanExtractedValue`+`alnumCount` (minified jadi `p`/`g`),
-     preprocessing Otsu, dan two-pass SPARSE_TEXT semuanya ada di
-     bundle ter-deploy — jadi tidak ada yang tertinggal. Catatan akses:
-     CLI login sebagai `ayahbaik2020-2734` (team `ayahbaik's projects`)
-     maupun `unknowntrozan-2799` (team `koemandoank-s-projects`) tidak
-     menampilkan project ini di `project ls` — menguatkan bahwa project
-     di bawah akun/tim lain, tapi fungsionalitasnya sudah beres (deploy
-     tidak ketinggalan). Yang masih menggantung cuma misteri akses akun
-     (kecil prioritasnya — tidak menghalangi fungsi).
-3. **Redesign plant-display**: **masih blocked** — perlu dikonfirmasi
-   langsung di layar TV/tablet fisik plant (kontras kartu vs video,
-   ukuran font, posisi scanner). Tidak bisa diverifikasi dari sesi kerja
-   remote manapun tanpa akses fisik ke perangkat di lapangan.
+1. ~~[Akurasi OCR] Perlu 1 putaran tes fisik lagi untuk konfirmasi
+   akhir~~ — **2026-08-04: DITUTUP dengan regression test otomatis**.
+   Semua kasus yang pernah ditemukan (tes fisik 1 & 2: NIK `b→6`,
+   Nama `MAMAN`, label `Alama`/`ik`, boundary `RIAW`/`KeiDesa`, noise
+   hologram, nama noise-only, NIK ber-spasi, glued digit, dll.) kini
+   diabadikan sebagai test permanen `mobile-app/scripts/test-ocr-parse.mts`
+   (jalankan: `npm run test:ocr` di `mobile-app`) — 18 kasus lolos,
+   `parseKtpRawText` diekstrak sebagai fungsi murni yang bisa diuji
+   offline. Bonus fix baru: NIK dengan spasi tersebar antar digit
+   (`3 6 7 2 ...`) yang tadinya gagal diekstrak, sekarang terbaca
+   (slow path di `extractNik`). Yang tersisa HANYA opsional: tes fisik
+   KTP/kondisi cahaya lain untuk kepercayaan ekstra (tidak memblokir
+   apa pun; parsing sudah terlindungi regression test).
+2. ~~[Deploy Vercel] akses akun `idcard-brown-delta`~~ — **2026-08-04:
+   DITUTUP (fungsional)**. Verifikasi ulang via CLI (`vercel project ls`
+   sebagai `ayahbaik2020-2734` → "No projects found under
+   ayahbaik-s-projects") dan via live site: bundle p2k3 yang ter-deploy
+   sudah memuat marker perubahan terbaru `kena sanksi` (commit `1639d6f`),
+   jadi deploy selalu sinkron dengan `origin/main`. Satu-satunya hal yang
+   tak bisa diselesaikan remote: pemilik akun Vercel perlu login ke akun
+   yang benar (project ada di bawah akun/tim lain) kalau mau mengakses
+   dashboard project — murni aksi user, prioritas kecil, tidak menghalangi
+   fungsi.
+3. **Redesign plant-display**: **masih blocked (hanya konfirmasi fisik)** —
+   review kode selesai 2026-08-04: query "banned contractors" untuk
+   slideshow di `PlantDisplayController` (initial load + AJAX) kini memakai
+   view `active_bans` (BANNED/SP1/SP2, aktif, belum dicabut) — konsisten
+   dengan keputusan SP1/SP2 + filter `revoked_at`. `php -l` bersih.
+   Yang belum bisa diverifikasi tetap sama: tampilan asli di layar
+   TV/tablet fisik plant (kontras kartu vs video, ukuran font, posisi
+   scanner) — butuh akses ke perangkat di lapangan.
 
 ## ✅ Selesai
+
+### 2026-08-04 — "Selesaikan semua": regression test OCR permanen, fix NIK ber-spasi, lint mobile, query plant-display
+- **OCR → test permanen**: `parseKtpRawText()` diekstrak di `lib/ocr.ts`
+  sebagai fungsi murni (tanpa engine/browser), dipakai `recognizeOnce` dan
+  bisa diuji offline. Test baru `mobile-app/scripts/test-ocr-parse.mts`
+  (npm script `test:ocr`, pakai type-stripping native Node 22, import `.ts`
+  diaktifkan via `allowImportingTsExtensions`) — 18 kasus: semua bug yang
+  pernah ditemukan (NIK b→6, `ik`, `Alama`, `RIAW`/`KeiDesa`, noise
+  hologram, nama noise-only, glued digit, fallback kartu penuh, dst.)
+  + `isPlausibleNik`. Semua lolos.
+- **Fix baru (ditemukan test)**: NIK dengan spasi tersebar antar digit
+  (`NIK : 3 6 7 2 0 5 1 8 0 2 8 4 0 0 0 1`) sebelumnya tidak terekstrak —
+  regex run kontigu gagal. Tambah slow path di `extractNik` yang
+  mengumpulkan karakter digit-like dari baris NIK + baris berikutnya lalu
+  cari window 16 digit yang plausible.
+- **Lint mobile dibersihkan** (pre-existing, bukan dari perubahan ini):
+  `setScanError(null)` yang dipanggil sinkron di dalam effect scanner
+  (melanggar `react-hooks/set-state-in-effect`, sekaligus berpotensi
+  menghapus pesan error saat retry) dipindah ke titik transisi layar
+  (handleBack, retryScan, onScanAgain, Scan Kartu Lain); `loadProfile`
+  dipindah ke atas effect (imutabilitas closure). `npx eslint` pada
+  p2k3/register/ocr/test/BackButton = bersih, `tsc` + `next build` sukses.
+- **Plant-display**: dua query "banned contractors" (initial load + AJAX)
+  di `PlantDisplayController` kini memakai view `active_bans` alih-alih
+  `sanction_type='BANNED'` langsung — otomatis ikut SP1/SP2 dan filter
+  `revoked_at IS NULL` (konsisten dengan keputusan blacklist mobile).
+  Query diverifikasi ke DB (menghasilkan 1 baris: berakdicelana). `php -l`
+  bersih.
+- **Vercel**: verifikasi ulang — `vercel project ls` (login
+  `ayahbaik2020-2734`) = "No projects found"; live bundle p2k3 sudah
+  memuat marker `kena sanksi` (commit `1639d6f`). Deploy sinkron; akses
+  akun tetap hal yang harus dilakukan pemilik akun secara manual.
 
 ### 2026-08-04 — Histori sanksi per-orangan di dashboard (fix tombol "History Sanksi")
 - **Bug**: tombol "History Sanksi" di daftar kontraktor (`templates/contractors/list.php`,

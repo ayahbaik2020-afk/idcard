@@ -45,12 +45,55 @@ export default function P2K3Page() {
   // loadProfile() to be kicked off twice and the scanner torn down twice.
   const handledRef = useRef(false);
 
+  async function loadProfile(idCard: string) {
+    setLoadingProfile(true);
+    setScanError(null);
+    try {
+      const { data: contractor, error: cErr } = await supabase
+        .from("synced_contractors")
+        .select("*")
+        .eq("id_card", idCard)
+        .maybeSingle();
+      if (cErr) throw cErr;
+      if (!contractor) {
+        setScanError(
+          `Kartu "${idCard}" tidak ditemukan di data yang sudah tersinkron. Coba scan ulang setelah sync berikutnya.`
+        );
+        setScreen("scan");
+        setScanAttempt((n) => n + 1);
+        return;
+      }
+
+      const { data: hist, error: hErr } = await supabase
+        .from("synced_sanction_history")
+        .select("*")
+        .eq("ktp_no", contractor.ktp_no)
+        .order("start_date", { ascending: false });
+      if (hErr) throw hErr;
+
+      setProfile(contractor as ContractorProfile);
+      setHistory((hist as SanctionHistoryRow[]) ?? []);
+      setScreen("profile");
+    } catch (e) {
+      console.error(e);
+      setScanError("Gagal memuat data. Periksa koneksi internet.");
+      setScreen("scan");
+      setScanAttempt((n) => n + 1);
+    } finally {
+      setLoadingProfile(false);
+    }
+  }
+
+  function retryScan() {
+    setScanError(null);
+    setScanAttempt((n) => n + 1);
+  }
+
   useEffect(() => {
     if (screen !== "scan") return;
 
     let cancelled = false;
     handledRef.current = false;
-    setScanError(null);
 
     import("html5-qrcode").then(({ Html5Qrcode }) => {
       if (cancelled) return;
@@ -107,52 +150,14 @@ export default function P2K3Page() {
           }
         });
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, scanAttempt]);
 
-  async function loadProfile(idCard: string) {
-    setLoadingProfile(true);
-    setScanError(null);
-    try {
-      const { data: contractor, error: cErr } = await supabase
-        .from("synced_contractors")
-        .select("*")
-        .eq("id_card", idCard)
-        .maybeSingle();
-      if (cErr) throw cErr;
-      if (!contractor) {
-        setScanError(
-          `Kartu "${idCard}" tidak ditemukan di data yang sudah tersinkron. Coba scan ulang setelah sync berikutnya.`
-        );
-        setScreen("scan");
-        setScanAttempt((n) => n + 1);
-        return;
-      }
-
-      const { data: hist, error: hErr } = await supabase
-        .from("synced_sanction_history")
-        .select("*")
-        .eq("ktp_no", contractor.ktp_no)
-        .order("start_date", { ascending: false });
-      if (hErr) throw hErr;
-
-      setProfile(contractor as ContractorProfile);
-      setHistory((hist as SanctionHistoryRow[]) ?? []);
-      setScreen("profile");
-    } catch (e) {
-      console.error(e);
-      setScanError("Gagal memuat data. Periksa koneksi internet.");
-      setScreen("scan");
-      setScanAttempt((n) => n + 1);
-    } finally {
-      setLoadingProfile(false);
-    }
-  }
 
   function handleBack() {
     switch (screen) {
       case "profile":
       case "sanction-sent":
+        setScanError(null);
         setScreen("scan");
         break;
       case "new-sanction":
@@ -190,7 +195,7 @@ export default function P2K3Page() {
                 {scanError}
               </p>
               <button
-                onClick={() => setScanAttempt((n) => n + 1)}
+                onClick={retryScan}
                 className="rounded-xl bg-slate-800 px-6 py-3 font-medium text-sm"
               >
                 Coba Scan Lagi
@@ -209,6 +214,7 @@ export default function P2K3Page() {
           history={history}
           onScanAgain={() => {
             setProfile(null);
+            setScanError(null);
             setScreen("scan");
           }}
           onAddSanction={() => setScreen("new-sanction")}
@@ -235,6 +241,7 @@ export default function P2K3Page() {
           <button
             onClick={() => {
               setProfile(null);
+              setScanError(null);
               setScreen("scan");
             }}
             className="rounded-xl bg-amber-600 px-6 py-4 font-medium"

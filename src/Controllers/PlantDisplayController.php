@@ -46,7 +46,7 @@ class PlantDisplayController
 
         // 4. Get banned contractors for initial load
         $banned_stmt = $this->pdo->prepare(
-            "SELECT c.id, c.name, c.photo, cc.name as company_name\n            FROM sanctions s\n            JOIN contractors c ON s.contractor_id = c.id\n            JOIN contractor_companies cc ON c.company_id = cc.id\n            WHERE s.sanction_type = 'BANNED'\n            AND (s.is_permanent = 1 OR s.end_date >= CURDATE())\n            GROUP BY c.id\n        ");
+            "SELECT c.id, c.name, c.photo, cc.name as company_name\n            FROM active_bans s\n            JOIN contractors c ON s.contractor_id = c.id\n            JOIN contractor_companies cc ON c.company_id = cc.id\n            GROUP BY c.id\n        ");
         $banned_stmt->execute();
         $banned_contractors_raw = $banned_stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -143,7 +143,7 @@ class PlantDisplayController
 
         // Always fetch banned contractors for the slideshow
         $banned_stmt = $this->pdo->prepare(
-            "SELECT c.id, c.name, c.photo, cc.name as company_name\n            FROM sanctions s\n            JOIN contractors c ON s.contractor_id = c.id\n            JOIN contractor_companies cc ON c.company_id = cc.id\n            WHERE s.sanction_type = 'BANNED'\n            AND (s.is_permanent = 1 OR s.end_date >= CURDATE())\n            GROUP BY c.id\n        ");
+            "SELECT c.id, c.name, c.photo, cc.name as company_name\n            FROM active_bans s\n            JOIN contractors c ON s.contractor_id = c.id\n            JOIN contractor_companies cc ON c.company_id = cc.id\n            GROUP BY c.id\n        ");
         $banned_stmt->execute();
         $banned_contractors_raw = $banned_stmt->fetchAll(PDO::FETCH_ASSOC);
 
