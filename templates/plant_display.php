@@ -109,6 +109,41 @@
         .glass-card.on-duty img { width: 80px; height: 105px; object-fit: cover; border-radius: 8px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.3); }
         .glass-card.info-plant .content { font-size: 0.85rem; opacity: 0.95; }
 
+        /* Qty kontraktor per perusahaan (PT) di dalam card activity */
+        .glass-card.card-activity .company-breakdown {
+            margin-top: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            max-height: 140px;
+            overflow-y: auto;
+            padding-right: 2px;
+        }
+        .glass-card.card-activity .company-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            font-size: 0.78rem;
+            line-height: 1.3;
+        }
+        .glass-card.card-activity .company-name {
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .glass-card.card-activity .company-total {
+            font-weight: 800;
+            color: var(--card-color);
+            min-width: 1.5rem;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
         /* Per-card theme colors (semantic: safety=green, activity=orange, duty/info=accent, alert=red, live=teal) */
         .glass-card.card-safety  { --card-color: #2ecc71; }
         .glass-card.card-activity { --card-color: #f39c12; }
@@ -202,7 +237,17 @@
         </div>
         <div class="glass-card card-activity">
             <h5><i class="fas fa-users me-2"></i>QTY KONTRAKTOR DI PLANT</h5>
-            <div class="content text-center stat-number" id="contractor-count"><?php echo $contractor_count; ?></div>
+            <div class="content text-center">
+                <div class="stat-number" id="contractor-count"><?php echo $contractor_count; ?></div>
+                <div class="company-breakdown" id="contractor-by-company">
+                    <?php foreach ($contractor_count_by_company as $row): ?>
+                    <div class="company-row">
+                        <span class="company-name"><?php echo htmlspecialchars($row['company_name']); ?></span>
+                        <span class="company-total"><?php echo (int) $row['total']; ?></span>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
         </div>
         <div class="glass-card on-duty">
             <h5><i class="fas fa-user-shield me-2"></i>PETUGAS ON DUTY</h5>
@@ -361,6 +406,19 @@
                 .then(response => response.json())
                 .then(data => {
                     document.getElementById('contractor-count').textContent = data.contractor_count;
+
+                    // Refresh per-company breakdown of in-plant contractors
+                    const breakdownEl = document.getElementById('contractor-by-company');
+                    if (breakdownEl && Array.isArray(data.contractor_by_company)) {
+                        breakdownEl.innerHTML = data.contractor_by_company.map(function (row) {
+                            var esc = function (s) {
+                                return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                            };
+                            return '<div class="company-row"><span class="company-name">' + esc(row.company_name) +
+                                '</span><span class="company-total">' + esc(row.total) + '</span></div>';
+                        }).join('');
+                    }
+
                     if (typeof data.plant_working_hours !== 'undefined') {
                         document.getElementById('man-hours-lti').textContent =
                             Math.round(data.plant_working_hours).toLocaleString('id-ID');

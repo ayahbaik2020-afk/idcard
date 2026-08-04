@@ -52,6 +52,22 @@
 
 ## ✅ Selesai
 
+### 2026-08-04 — Plant Display: QTY KONTRAKTOR DI PLANT ditampilkan per perusahaan (PT)
+- Card "QTY KONTRAKTOR DI PLANT" di plant display kini menampilkan
+  total (angka besar tetap) PLUS rincian jumlah karyawan per PT.
+- `PlantDisplayController`: helper baru `getContractorCountByCompany()`
+  (GROUP BY `contractor_companies.name` atas kontraktor yang sedang ada
+  di plant: check-in hari ini & belum check-out — scope sama dengan
+  counter utama). Dipakai di `index()` (load awal) dan `getUpdate()`
+  (AJAX live) → JSON tambah key `contractor_by_company`.
+- `plant_display.php`: card diisi daftar `company-row` (nama PT +
+  angka), CSS glass baru (row 0.78rem, rounded, scroll jika >140px),
+  JS `fetchUpdate()` merefresh daftar per-company (escape HTML di JS).
+- Diverifikasi: render 200 (struktur breakdown ada), AJAX getUpdate
+  mengembalikan `contractor_by_company` (kosong saat ini karena memang
+  tidak ada check-in aktif hari ini), query GROUP BY terbukti benar
+  (PT. BIKIN ONAR=3, PT ORA JELAS=2, dst). `php -l` bersih.
+
 ### 2026-08-04 — One-Page Dashboard (tanpa scroll desktop)
 - **Target**: seluruh dashboard muat dalam satu layar tanpa vertical
   scroll pada 1366×768 / 1600×900 / 1920×1080.

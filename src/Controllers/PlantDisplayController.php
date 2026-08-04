@@ -44,6 +44,9 @@ class PlantDisplayController
         $count_stmt->execute([$plant_name]);
         $contractor_count = $count_stmt->fetchColumn() ?? 0;
 
+        // 3b. Same in-plant contractors grouped by company/PT
+        $contractor_count_by_company = $this->getContractorCountByCompany($plant_name);
+
         // 4. Get banned contractors for initial load
         $banned_stmt = $this->pdo->prepare(
             "SELECT c.id, c.name, c.photo, cc.name as company_name\n            FROM active_bans s\n            JOIN contractors c ON s.contractor_id = c.id\n            JOIN contractor_companies cc ON c.company_id = cc.id\n            GROUP BY c.id\n        ");
@@ -60,7 +63,7 @@ class PlantDisplayController
         }, $banned_contractors_raw);
 
         // 5. Pass data to the view
-        $data = compact('plant_name', 'settings', 'contractor_count', 'banned_contractors');
+        $data = compact('plant_name', 'settings', 'contractor_count', 'contractor_count_by_company', 'banned_contractors');
 
         extract($data);
         include __DIR__ . '/../../templates/plant_display.php';
@@ -77,6 +80,19 @@ class PlantDisplayController
             return 'uploads/photos/' . htmlspecialchars($photo);
         }
         return self::DEFAULT_AVATAR;
+    }
+
+    /**
+     * Counts the contractors currently in the plant, grouped by company
+     * (PT). Same scope as the main in-plant counter: checked in today and
+     * not yet checked out.
+     */
+    private function getContractorCountByCompany($plant_name)
+    {
+        $stmt = $this->pdo->prepare(
+            "SELECT cc.name AS company_name, COUNT(*) AS total\n            FROM attendances a\n            JOIN contractors c ON a.contractor_id = c.id\n            JOIN contractor_companies cc ON c.company_id = cc.id\n            WHERE a.plant_location = ? AND DATE(a.check_in_time) = CURDATE() AND a.check_out_time IS NULL\n            GROUP BY cc.name\n            ORDER BY total DESC, cc.name ASC\n        ");
+        $stmt->execute([$plant_name]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**
@@ -122,6 +138,9 @@ class PlantDisplayController
         $count_stmt->execute([$plant_name]);
         $contractor_count = $count_stmt->fetchColumn() ?? 0;
 
+        // Per-company breakdown of the in-plant count
+        $contractor_by_company = $this->getContractorCountByCompany($plant_name);
+
         // Check for a recent scan event (check-in or check-out in the last 15 seconds)
         $last_scan = null;
         $scan_stmt = $this->pdo->prepare(
@@ -158,6 +177,7 @@ class PlantDisplayController
 
         echo json_encode([
             'contractor_count' => $contractor_count,
+            'contractor_by_company' => $contractor_by_company,
             'plant_working_hours' => $plant_working_hours,
             'last_scan' => $last_scan,
             'banned_contractors' => $banned_contractors,
