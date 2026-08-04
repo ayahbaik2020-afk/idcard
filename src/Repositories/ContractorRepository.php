@@ -400,6 +400,31 @@ class ContractorRepository
         $stmt->execute([$status, $id]);
     }
 
+    /**
+     * Reactivates contractors whose status is stuck at 'Banned' but who no
+     * longer have any currently-active sanction (temporary ban expired, or
+     * all their bans revoked). Keeps the `status` column consistent with
+     * the `active_bans` view, so a stale "Banned" row doesn't silently
+     * disappear from the banned list while the ID card stays blocked.
+     * Returns how many rows were flipped back to 'Active'.
+     */
+    public function autoReactivateExpiredBanned(): int
+    {
+        $stmt = $this->pdo->query(
+            "UPDATE contractors c"
+            . " SET c.status = 'Active'"
+            . " WHERE c.status = 'Banned'"
+            . " AND NOT EXISTS ("
+            . "   SELECT 1 FROM sanctions s"
+            . "   WHERE s.contractor_id = c.id"
+            . "     AND s.revoked_at IS NULL"
+            . "     AND s.sanction_type IN ('BANNED','SP1','SP2')"
+            . "     AND (s.is_permanent = 1 OR s.end_date IS NULL OR s.end_date >= CURDATE())"
+            . " )"
+        );
+        return $stmt->rowCount();
+    }
+
     public function delete($id)
     {
         $stmt = $this->pdo->prepare("DELETE FROM contractors WHERE id = ?");

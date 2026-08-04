@@ -73,6 +73,21 @@ class ContractorService
         }
     }
 
+    /**
+     * Reactivates contractors stuck at status 'Banned' with no currently
+     * active sanction (temporary ban expired or all bans revoked).
+     * Runs automatically during sync / banned-list views so the status
+     * field never drifts out of line with the `active_bans` view.
+     */
+    public function autoReactivateExpiredBanned(): int
+    {
+        $count = $this->contractorRepo->autoReactivateExpiredBanned();
+        if ($count > 0) {
+            $this->contractorRepo->logActivity('update', 'contractors', null, "Auto-reactivated {$count} contractor(s) whose ban has expired");
+        }
+        return $count;
+    }
+
     public function resolveCompanyId($companyId, $newCompanyName)
     {
         if ($companyId === 'new_company' && !empty($newCompanyName)) {

@@ -4,6 +4,8 @@ namespace App\Controllers;
 
 use PDO;
 
+use App\Repositories\ContractorRepository;
+
 class DashboardController
 {
     protected $pdo;
@@ -53,12 +55,14 @@ class DashboardController
         $company_count = $company_count_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
         // 6. Banned Contractors List
+        // Reaktivasi dulu yang ban-nya sudah berakhir agar daftar akurat.
+        (new ContractorRepository($this->pdo))->autoReactivateExpiredBanned();
         $banned_stmt = $this->pdo->query(
             "SELECT c.name, c.id_card, c.photo, cc.name as company_name, s.reason"
             . " FROM contractors c"
             . " JOIN sanctions s ON c.id = s.contractor_id"
             . " JOIN contractor_companies cc ON c.company_id = cc.id"
-            . " WHERE c.status = 'Banned' AND (s.is_permanent = 1 OR s.end_date >= CURDATE())"
+            . " WHERE c.status = 'Banned' AND s.revoked_at IS NULL AND (s.is_permanent = 1 OR s.end_date >= CURDATE())"
         );
         $banned_contractors = $banned_stmt->fetchAll();
 

@@ -91,8 +91,84 @@
    langsung di layar TV/tablet fisik plant (kontras kartu vs video,
    ukuran font, posisi scanner). Tidak bisa diverifikasi dari sesi kerja
    remote manapun tanpa akses fisik ke perangkat di lapangan.
+4. **Commit & push belum dilakukan untuk auto-reaktivasi** (sesi
+   2026-08-03 sore). File berubah: `src/Repositories/ContractorRepository.php`,
+   `src/Services/ContractorService.php`, `src/Controllers/SanctionController.php`,
+   `src/Controllers/DashboardController.php`, `scripts/sync_from_cloud.php`,
+   `WORK_LOG.md`. `--push` sudah dijalankan manual (cloud konsisten),
+   tapi perubahan kode lokal belum di-commit. Lanjut besok: `git add`,
+   commit, push (kalau user minta).
+5. **Pertanyaan desain SP1/SP2 vs blacklist mobile**: `applySanctionToContractor`
+   juga set `status='Banned'` untuk SP1/SP2, tapi view `active_bans`
+   (sumber snapshot `synced_active_bans` untuk blacklist mobile) hanya
+   menyaring `sanction_type='BANNED'`. Artinya kontraktor SP1/SP2
+   diblokir di sistem lokal (AttendanceController) tapi TIDAK di blokir
+   registrasi mobile. Perlu keputusan user: apakah SP1/SP2 juga harus
+   memblokir registrasi mobile? Kalau ya, sesuaikan view + query.
 
 ## ✅ Selesai
+
+### 2026-08-03 — Konsistensi status Banned vs sanksi (auto-reaktivasi)
+- **Anomali**: kontraktor `26.0006` (matilahkaubujang) berstatus `Banned`
+  tapi tidak muncul di daftar banned (dashboard & halaman sanksi). Akar
+  masalah: `status` tidak pernah di-reset saat sanksi sementara berakhir
+  — ban-nya (BANNED, 2025-10-13 s.d. 2025-10-18) sudah kedaluwarsa, jadi
+  tidak masuk view `active_bans` / daftar banned, tapi kartunya tetap
+  diblokir oleh `AttendanceController` (cek `status='Banned'`).
+- **Fix**: `ContractorRepository::autoReactivateExpiredBanned()` — UPDATE
+  `contractors` set `status='Active'` untuk yang `status='Banned'` tapi
+  tidak punya sanksi aktif (BANNED/SP1/SP2 yang belum dicabut dan masih
+  berlaku: `is_permanent=1` atau `end_date` belum lewat).
+- Dipanggil otomatis di 3 titik supaya self-healing:
+  - `scripts/sync_from_cloud.php` (cron `idcard_mobile_sync`, tiap
+    ~10 menit) — sebelum pull/push.
+  - `SanctionController::index()` (daftar banned).
+  - `DashboardController::index()` (widget daftar banned).
+- Tambahan: query daftar banned di kedua controller kini juga menyaring
+  `s.revoked_at IS NULL` (ban yang dicabut tidak menahan di daftar).
+- **Hasil**: auto-reaktivasi 1 kontraktor (`26.0006` → Active). Tersisa 1
+  banned (26.0009, permanen) — konsisten antara daftar banned lokal,
+  view `active_bans`, dan snapshot cloud. `--push` OK: **1 active bans**
+  (sebelumnya 2), 10 kontraktor, 9 histori sanksi, 8 PT.
+
+### 2026-08-03 — Pisah arah sinkronisasi + tombol "Kirim"/"Tarik" di dashboard
+- Per spesifikasi user, arah sync dipisah tegas:
+  - **Dashboard "Kirim"** = proses **push** data terbaru lokal → cloud
+    (Vercel/Supabase): blacklist, direktori kontraktor, histori sanksi,
+    daftar PT.
+  - **Dashboard "Tarik"** = proses **pull** registrasi/sanksi baru dari
+    cloud → sistem lokal (dari staging_contractors / staging_sanctions).
+  - **Sync mobile app** (auto + tombol Sinkronkan) = pull data terbaru
+    dari Supabase untuk refresh tampilan (sudah benar, tidak diubah).
+  - **Setelah registrasi HP**: data masuk lokal otomatis via cron
+    (Task Scheduler `idcard_mobile_sync`, mode full tiap ~10 menit).
+- `scripts/sync_from_cloud.php`: tambah argumen mode —
+  `--push` (kirim saja), `--pull` (tarik saja), tanpa argumen = full
+  (keduanya, dipakai cron). Log diawali `Mode: ...`.
+- `public/sync_now.php`: menerima body JSON `{"mode":"push"|"pull"}` dan
+  menjalankan script dengan flag yang sesuai (tetap Super Admin + POST).
+- `templates/dashboard.php`: ganti tombol "Sync Now" menjadi dua tombol
+  **Kirim** (btn-primary, ikon upload) dan **Tarik** (btn-secondary,
+  ikon download), JS digeneralisasi `runSync(mode, btn, verb)`.
+  Tombol tetap hanya untuk role Super Admin.
+- Robustness: `http_json()` di sync script sekarang resolve host sekali via
+  `gethostbyname()` lalu pin dengan `CURLOPT_RESOLVE` + retry 3x —
+  mengatasi "Could not resolve host" yang sempat muncul saat script
+  di-exec dari web server (konteks php-cgi/mod_fcgid).
+- Diverifikasi: ketiga mode (`--push`, `--pull`, full) jalan via CLI dan
+  lewat web (exec) dengan benar; endpoint `sync_now.php` merespons 403
+  untuk request tanpa auth Super Admin (tidak ada fatal error).
+
+### 2026-08-03 — Tombol back di setiap layar aplikasi mobile
+- Komponen baru `mobile-app/components/BackButton.tsx` (Link ke `/` saat
+  `href` diberikan, atau button `onClick` untuk kembali ke step/screen
+  sebelumnya). Label default "Kembali"; di layar pertama "Beranda".
+- `app/register/page.tsx`: header berisi BackButton + judul; `handleBack()`
+  per step — ktp/photo/duplicate/reactivate → ktp; blacklist/done →
+  company; company → beranda.
+- `app/p2k3/page.tsx`: header BackButton + judul; `handleBack()` —
+  profile/sanction-sent → scan; new-sanction → profile; scan → beranda.
+- Build webpack + tsc sukses, eslint bersih.
 
 ### 2026-08-05 (lanjutan 2) — Fix 2 bug nyata dari tes fisik pertama (NIK b→6, filter noise Nama/Alamat)
 - Lanjutan langsung dari entri "Belum" #1 di atas (bukti tes fisik

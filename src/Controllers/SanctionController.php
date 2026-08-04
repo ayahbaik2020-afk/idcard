@@ -4,6 +4,8 @@ namespace App\Controllers;
 
 use PDO;
 
+use App\Repositories\ContractorRepository;
+
 class SanctionController
 {
     protected $pdo;
@@ -15,13 +17,17 @@ class SanctionController
 
     public function index()
     {
+        // Reaktivasi kontraktor yang status Banned tapi sanksinya sudah
+        // berakhir/dicabut, supaya daftar ini tetap akurat.
+        (new ContractorRepository($this->pdo))->autoReactivateExpiredBanned();
+
         // List banned contractors
         $stmt = $this->pdo->query(
             "SELECT s.id, c.name, c.id_card, c.photo, cc.name as company_name, s.reason, s.sanction_type, s.start_date, s.end_date, s.is_permanent"
             . " FROM contractors c"
             . " JOIN sanctions s ON c.id = s.contractor_id"
             . " JOIN contractor_companies cc ON c.company_id = cc.id"
-            . " WHERE c.status = 'Banned' AND (s.is_permanent = 1 OR s.end_date >= CURDATE())"
+            . " WHERE c.status = 'Banned' AND s.revoked_at IS NULL AND (s.is_permanent = 1 OR s.end_date >= CURDATE())"
             . " ORDER BY s.start_date DESC"
         );
         $banned_contractors = $stmt->fetchAll();
