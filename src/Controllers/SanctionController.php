@@ -49,6 +49,20 @@ class SanctionController
             exit();
         }
 
+        // Contractor info for the page header
+        $c_stmt = $this->pdo->prepare(
+            "SELECT c.id, c.name, c.id_card, c.photo, c.plant_location, c.status, cc.name as company_name"
+            . " FROM contractors c"
+            . " JOIN contractor_companies cc ON c.company_id = cc.id"
+            . " WHERE c.id = ?"
+        );
+        $c_stmt->execute([$contractor_id]);
+        $contractor = $c_stmt->fetch();
+        if (!$contractor) {
+            header('Location: index.php?page=contractors');
+            exit();
+        }
+
         $stmt = $this->pdo->prepare(
             "SELECT s.*, c.name as contractor_name, cc.name as company_name, v.name as violation_name \n"
             . "FROM sanctions s \n"
@@ -60,12 +74,30 @@ class SanctionController
         $stmt->execute([$contractor_id]);
         $sanctions = $stmt->fetchAll();
 
-        $data = compact('sanctions');
+        // Per-sanction status label (Berlaku / Selesai / Dicabut) so the
+        // history page can tell at a glance which records are still live.
+        $today = date('Y-m-d');
+        foreach ($sanctions as &$s) {
+            if (!empty($s['revoked_at'])) {
+                $s['status'] = 'Dicabut';
+            } elseif ($s['is_permanent'] == 1) {
+                $s['status'] = 'Berlaku (permanen)';
+            } elseif (empty($s['end_date']) || $s['end_date'] >= $today) {
+                $s['status'] = 'Berlaku';
+            } else {
+                $s['status'] = 'Selesai';
+            }
+        }
+        unset($s);
+
+        $total_count = count($sanctions);
+
+        $data = compact('contractor', 'sanctions', 'total_count');
 
         $content = '';
         ob_start();
         extract($data);
-        include __DIR__ . '/../../templates/sanctions/list.php';
+        include __DIR__ . '/../../templates/sanctions/history.php';
         $content = ob_get_clean();
         include __DIR__ . '/../../templates/layout.php';
     }

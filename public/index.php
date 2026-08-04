@@ -64,9 +64,6 @@ switch ($page) {
             case 'create':
                 $controller->create();
                 break;
-                case 'history':
-                    $controller->history($_GET['contractor_id'] ?? null);
-                    break;
             case 'store':
                 $controller->store();
                 break;
@@ -127,6 +124,9 @@ switch ($page) {
                 break;
             case 'release':
                 $controller->release($id);
+                break;
+            case 'history':
+                $controller->history($_GET['contractor_id'] ?? null);
                 break;
             default:
                 $controller->index();

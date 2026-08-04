@@ -289,7 +289,14 @@ function ProfileView({
       </div>
 
       <div>
-        <p className="text-sm font-medium mb-2">Histori Sanksi</p>
+        <p className="text-sm font-medium mb-2">
+          Histori Sanksi
+          {history.length > 0 && (
+            <span className="ml-1 text-xs text-slate-400">
+              ({history.length}x kena sanksi)
+            </span>
+          )}
+        </p>
         {history.length === 0 && (
           <p className="text-sm text-slate-500">
             Tidak ada catatan sanksi.

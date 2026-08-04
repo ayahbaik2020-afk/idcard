@@ -94,6 +94,30 @@
 
 ## ✅ Selesai
 
+### 2026-08-04 — Histori sanksi per-orangan di dashboard (fix tombol "History Sanksi")
+- **Bug**: tombol "History Sanksi" di daftar kontraktor (`templates/contractors/list.php`,
+  `expired.php`) menuju `index.php?page=sanctions&action=history&contractor_id=X`,
+  tapi router `page=sanctions` tidak punya `case 'history'` → jatuh ke default
+  `index()` = daftar banned. Plus `SanctionController::history()` (yang lama)
+  malah include `templates/sanctions/list.php` (template daftar banned). Jadi
+  tidak pernah ada tampilan histori yang merujuk ke perorangan.
+- **Fix**:
+  - `public/index.php`: tambah `case 'history'` di router `page=sanctions`;
+    hapus branch `case 'history'` di router `page=contractors` yang menunjuk
+    ke `ContractorController::history()` (method-nya tidak ada → fatal).
+  - `SanctionController::history()`: ambil info kontraktor (nama, id_card,
+    company, plant, status), semua sanksi per kontraktor DESC, hitung
+    `total_count` (berapa kali kena sanksi), dan label status per sanksi
+    (Berlaku / Berlaku (permanen) / Selesai / Dicabut).
+  - `templates/sanctions/history.php` (baru): header kontraktor + badge
+    "X kali kena sanksi" + tabel histori (jenis sanksi, pelanggaran, periode,
+    status, alasan, asal data local/mobile) + aksi Edit/Release.
+- **Mobile P2K3**: judul "Histori Sanksi" kini menampilkan
+  `(Nx kena sanksi)` di profil setelah scan.
+- Diverifikasi: query per-orangan untuk kontraktor 26.0007 → 4 kali kena
+  sanksi dengan status yang benar; `php -l` bersih; `next build --webpack`
+  sukses.
+
 ### 2026-08-04 — SP1/SP2 juga memicu peringatan blacklist di registrasi mobile
 - Per keputusan user: peringatan blacklist di registrasi mobile harus
   muncul jika man power punya **pelanggaran** apa pun, bukan hanya BANNED.
