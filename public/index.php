@@ -155,6 +155,11 @@ switch ($page) {
                     $controller->updateUser($id);
                 }
                 break;
+            case 'changeUserPassword':
+                if ($id) {
+                    $controller->changeUserPassword($id);
+                }
+                break;
             case 'deleteUser':
                 if ($id) {
                     $controller->deleteUser($id);

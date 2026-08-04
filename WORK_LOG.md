@@ -108,6 +108,29 @@
   (`expiry_date ?? null`, `expired` dievaluasi hanya kalau tanggal ada),
   jadi tidak ada perubahan di mobile-app untuk bug ini.
 
+### 2026-08-04 — Hanya Super Admin yang bisa ubah/hapus user + fitur "Ganti Password"
+- **Permission**: `createUser`, `updateUser`, `deleteUser`, dan
+  `changeUserPassword` di `SettingController` kini dijaga oleh
+  `requireSuperAdmin()` (cek `$_SESSION['user_role'] === 'Super Admin'`).
+  Non-superadmin yang mencoba via URL langsung di-redirect ke daftar user
+  dengan error (enforcement server-side, bukan cuma sembunyi tombol).
+  Template `templates/settings/users.php` juga menyembunyikan tombol
+  Tambah/Edit/Ganti Password/Hapus untuk non-superadmin (kolom Aksi jadi
+  "-").
+- **Proteksi tambahan**: akun Super Admin tidak bisa dihapus (selalu ada
+  minimal satu superadmin); `updateUser` kini validasi email unik (dengan
+  pengecualian user sendiri) + nama/email/role wajib diisi (sebelumnya
+  tanpa validasi sama sekali).
+- **Ganti Password**: tombol + modal baru "Ganti Password" per user
+  (superadmin saja), aksi `changeUserPassword` dengan validasi min 6
+  karakter + konfirmasi cocok, hash `password_hash`, dicatat ke activity
+  log.
+- **Verifikasi**: harness test (subproses karena controller pakai
+  `exit()`) — 6 skenario lolos: delete di-block untuk non-superadmin,
+  update role di-block, self-delete Super Admin di-block, ganti password
+  superadmin sukses, mismatch & password pendek ditolak. `php -l` bersih
+  untuk controller, router, dan template.
+
 ### 2026-08-04 — Histori sanksi per-orangan di dashboard (fix tombol "History Sanksi")
 - **Bug**: tombol "History Sanksi" di daftar kontraktor (`templates/contractors/list.php`,
   `expired.php`) menuju `index.php?page=sanctions&action=history&contractor_id=X`,

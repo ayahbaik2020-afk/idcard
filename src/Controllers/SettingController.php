@@ -24,6 +24,21 @@ class SettingController
         $this->pdo = $pdo;
     }
 
+    /**
+     * Only the Super Admin may create / edit / delete users or change their
+     * passwords. Non-super-admin sessions are redirected back to the list
+     * with an error (server-side enforcement - the template also hides the
+     * buttons, but this guard cannot be bypassed by crafting URLs).
+     */
+    private function requireSuperAdmin()
+    {
+        if (($_SESSION['user_role'] ?? '') !== 'Super Admin') {
+            $_SESSION['errors'] = ['Hanya Super Admin yang dapat mengubah user.'];
+            header('Location: index.php?page=settings&action=user');
+            exit();
+        }
+    }
+
     public function index()
     {
         // Redirect to system settings
@@ -122,6 +137,8 @@ class SettingController
 
     public function createUser()
     {
+        $this->requireSuperAdmin();
+
         $name = trim($_POST['name'] ?? '');
         $email = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
@@ -160,9 +177,28 @@ class SettingController
 
     public function updateUser($id)
     {
+        $this->requireSuperAdmin();
+
         $name = $_POST['name'] ?? '';
         $email = $_POST['email'] ?? '';
         $role = $_POST['role'] ?? '';
+
+        // Validation
+        $errors = [];
+        if (empty(trim($name))) $errors[] = 'Nama diperlukan.';
+        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'Email valid diperlukan.';
+        if (empty($role)) $errors[] = 'Role diperlukan.';
+
+        // Email must stay unique (exclude current user)
+        $stmt_check = $this->pdo->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
+        $stmt_check->execute([$email, $id]);
+        if ($stmt_check->fetch()) $errors[] = 'Email sudah terdaftar.';
+
+        if (!empty($errors)) {
+            $_SESSION['errors'] = $errors;
+            header('Location: index.php?page=settings&action=user');
+            exit();
+        }
 
         $stmt = $this->pdo->prepare("UPDATE users SET name = ?, email = ?, role = ? WHERE id = ?");
         $stmt->execute([$name, $email, $role, $id]);
@@ -174,11 +210,58 @@ class SettingController
         exit();
     }
 
+    public function changeUserPassword($id)
+    {
+        $this->requireSuperAdmin();
+
+        $password = $_POST['password'] ?? '';
+        $confirm = $_POST['password_confirm'] ?? '';
+
+        $errors = [];
+        if (empty($password) || strlen($password) < 6) $errors[] = 'Password minimal 6 karakter.';
+        if ($password !== $confirm) $errors[] = 'Konfirmasi password tidak cocok.';
+
+        $stmt_check = $this->pdo->prepare("SELECT name FROM users WHERE id = ?");
+        $stmt_check->execute([$id]);
+        $name = $stmt_check->fetchColumn();
+        if (!$name) $errors[] = 'User tidak ditemukan.';
+
+        if (!empty($errors)) {
+            $_SESSION['errors'] = $errors;
+            header('Location: index.php?page=settings&action=user');
+            exit();
+        }
+
+        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+        $stmt = $this->pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
+        $stmt->execute([$hashed_password, $id]);
+
+        // Log activity
+        $this->logActivity('update', 'users', $id, "Changed password for user: $name");
+
+        header('Location: index.php?page=settings&action=user');
+        exit();
+    }
+
     public function deleteUser($id)
     {
-        $stmt = $this->pdo->prepare("SELECT name FROM users WHERE id = ?");
-        $stmt->execute([$id]);
-        $name = $stmt->fetchColumn();
+        $this->requireSuperAdmin();
+
+        // Super Admin tidak boleh dihapus (tidak boleh ada tanpa superadmin).
+        $stmt_check = $this->pdo->prepare("SELECT name, role FROM users WHERE id = ?");
+        $stmt_check->execute([$id]);
+        $user = $stmt_check->fetch();
+        if (!$user) {
+            header('Location: index.php?page=settings&action=user');
+            exit();
+        }
+        if ($user['role'] === 'Super Admin') {
+            $_SESSION['errors'] = ['Akun Super Admin tidak dapat dihapus.'];
+            header('Location: index.php?page=settings&action=user');
+            exit();
+        }
+
+        $name = $user['name'];
 
         $stmt = $this->pdo->prepare("DELETE FROM users WHERE id = ?");
         $stmt->execute([$id]);
