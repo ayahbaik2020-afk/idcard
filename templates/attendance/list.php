@@ -112,3 +112,106 @@
         </div>
     </div>
 </div>
+
+<!-- Period switcher -->
+<div class="filter-section mt-4">
+    <div class="d-flex align-items-center flex-wrap gap-2">
+        <span class="fw-semibold text-muted me-2">Periode Log:</span>
+        <?php
+        $periods = ['day' => 'Hari', 'week' => 'Minggu', 'month' => 'Bulan', 'year' => 'Tahun'];
+        foreach ($periods as $p => $label):
+            $pqs = ['page' => 'attendance', 'period' => $p];
+        ?>
+        <a href="index.php?<?php echo http_build_query($pqs); ?>" class="btn btn-sm <?php echo $period === $p ? 'btn-primary' : 'btn-outline-secondary'; ?>"><?php echo $label; ?></a>
+        <?php endforeach; ?>
+        <span class="ms-2 text-muted small"><?php echo date('d M Y', strtotime($from)); ?> — <?php echo date('d M Y', strtotime($to)); ?></span>
+    </div>
+</div>
+
+<!-- Log table: per Perusahaan -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-building me-2 text-primary"></i>Log Kehadiran per Perusahaan (PT)
+            </div>
+            <div class="table-responsive">
+                <table class="table log-table">
+                    <thead>
+                        <tr>
+                            <th>No.</th>
+                            <th>Tanggal</th>
+                            <th>Nama PT</th>
+                            <th>Plant</th>
+                            <th>Jumlah Kehadiran</th>
+                            <th>Jumlah Jam Kerja</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($company_log)): ?>
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">Tidak ada data pada periode ini.</td>
+                        </tr>
+                        <?php else: $no = 1; ?>
+                        <?php foreach ($company_log as $row): ?>
+                        <tr>
+                            <td><?php echo $no++; ?></td>
+                            <td><?php echo date('d M Y', strtotime($row['tanggal'])); ?></td>
+                            <td><?php echo htmlspecialchars($row['company_name']); ?></td>
+                            <td><?php echo htmlspecialchars($row['plant']); ?></td>
+                            <td><?php echo number_format($row['jumlah_kehadiran']); ?></td>
+                            <td><?php echo number_format($row['jumlah_jam_kerja'], 2); ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Log table: per man power -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-user me-2 text-primary"></i>Log Kehadiran per Man Power (NIK KTP)
+            </div>
+            <div class="table-responsive">
+                <table class="table log-table">
+                    <thead>
+                        <tr>
+                            <th>No.</th>
+                            <th>Tanggal</th>
+                            <th>Nama</th>
+                            <th>Nama PT</th>
+                            <th>Plant</th>
+                            <th>Jumlah Kehadiran</th>
+                            <th>Jumlah Jam Kerja</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($person_log)): ?>
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">Tidak ada data pada periode ini.</td>
+                        </tr>
+                        <?php else: $no = 1; ?>
+                        <?php foreach ($person_log as $row): ?>
+                        <tr>
+                            <td><?php echo $no++; ?></td>
+                            <td><?php echo date('d M Y', strtotime($row['tanggal'])); ?></td>
+                            <td><?php echo htmlspecialchars($row['contractor_name']); ?></td>
+                            <td><?php echo htmlspecialchars($row['company_name']); ?></td>
+                            <td><?php echo htmlspecialchars($row['plant']); ?></td>
+                            <td><?php echo number_format($row['jumlah_kehadiran']); ?></td>
+                            <td><?php echo number_format($row['jumlah_jam_kerja'], 2); ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

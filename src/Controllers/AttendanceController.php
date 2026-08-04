@@ -94,7 +94,62 @@ class AttendanceController
         $companies_stmt = $this->pdo->query("SELECT * FROM contractor_companies ORDER BY name");
         $companies = $companies_stmt->fetchAll();
 
-        $data = compact('attendances', 'companies', 'search', 'plant', 'company_id', 'start_date', 'end_date', 'totals', 'pagination');
+        // ---- Log tables (per period) ----
+        $period = $_GET['period'] ?? 'week';
+        $valid_periods = ['day', 'week', 'month', 'year'];
+        if (!in_array($period, $valid_periods, true)) {
+            $period = 'week';
+        }
+
+        switch ($period) {
+            case 'day':
+                $from = $to = date('Y-m-d');
+                break;
+            case 'week':
+                $from = date('Y-m-d', strtotime('monday this week'));
+                $to = date('Y-m-d', strtotime('sunday this week'));
+                break;
+            case 'month':
+                $from = date('Y-m-01');
+                $to = date('Y-m-t');
+                break;
+            case 'year':
+                $from = date('Y-01-01');
+                $to = date('Y-12-31');
+                break;
+        }
+
+        // Log per company (PT)
+        $stmt = $this->pdo->prepare("
+            SELECT DATE(a.check_in_time) AS tanggal, cc.name AS company_name, a.plant_location AS plant,
+                   COUNT(*) AS jumlah_kehadiran, IFNULL(SUM(a.work_hours), 0) AS jumlah_jam_kerja
+            FROM attendances a
+            JOIN contractors c ON a.contractor_id = c.id
+            JOIN contractor_companies cc ON c.company_id = cc.id
+            WHERE DATE(a.check_in_time) BETWEEN ? AND ?
+            GROUP BY DATE(a.check_in_time), cc.name, a.plant_location
+            ORDER BY tanggal DESC, company_name ASC
+        ");
+        $stmt->execute([$from, $to]);
+        $company_log = $stmt->fetchAll();
+
+        // Log per man power (grouped by NIK so a person keeps their name
+        // across PT changes; company shown is the one they belong to)
+        $stmt = $this->pdo->prepare("
+            SELECT DATE(a.check_in_time) AS tanggal, c.name AS contractor_name, cc.name AS company_name,
+                   a.plant_location AS plant, COUNT(*) AS jumlah_kehadiran,
+                   IFNULL(SUM(a.work_hours), 0) AS jumlah_jam_kerja
+            FROM attendances a
+            JOIN contractors c ON a.contractor_id = c.id
+            JOIN contractor_companies cc ON c.company_id = cc.id
+            WHERE DATE(a.check_in_time) BETWEEN ? AND ?
+            GROUP BY DATE(a.check_in_time), c.id_card, c.name, cc.name, a.plant_location
+            ORDER BY tanggal DESC, contractor_name ASC
+        ");
+        $stmt->execute([$from, $to]);
+        $person_log = $stmt->fetchAll();
+
+        $data = compact('attendances', 'companies', 'search', 'plant', 'company_id', 'start_date', 'end_date', 'totals', 'pagination', 'period', 'from', 'to', 'company_log', 'person_log');
 
         $content = '';
         ob_start();

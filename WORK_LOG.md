@@ -52,6 +52,26 @@
 
 ## ✅ Selesai
 
+### 2026-08-04 — Log kehadiran 2 tabel (per Perusahaan & per Man Power) + switcher periode
+- Halaman Daftar Kehadiran (`page=attendance`) kini punya 2 tabel log
+  ringkasan: **per Perusahaan (PT)** dan **per Man Power**, keduanya
+  dengan switcher periode **Hari / Minggu / Bulan / Tahun** (default
+  Minggu).
+- Kolom tabel PT: No | Tanggal | Nama PT | Plant | Jumlah Kehadiran |
+  Jumlah Jam Kerja. Kolom tabel per orang: No | Tanggal | Nama | Nama PT
+  | Plant | Jumlah Kehadiran | Jumlah Jam Kerja.
+- `AttendanceController::index()`: hitung range tanggal berdasar `period`
+  (`day`/`week`/`month`/`year`), lalu 2 query GROUP BY: per-company
+  (`DATE(check_in_time)`, `company_name`, `plant`) dan per-person
+  (`DATE`, `id_card`, `name`, `company_name`, `plant`). Person
+  dikelompokkan via `c.id_card` (NIK KTP) sehingga 1 orang tetap satu
+  baris walau pernah ganti PT/Perusahaan.
+- `attendance/list.php`: baris switcher periode (btn-primary = aktif,
+  btn-outline-secondary = lainnya) + rentang tanggal terpilih; 2 tabel
+  log dengan fallback "Tidak ada data pada periode ini".
+- Diverifikasi: `php -l` bersih; render 200 untuk keempat periode;
+  tabel log muncul dan berisi data (test data: 8 attendance).
+
 ### 2026-08-04 — Plant Display: QTY KONTRAKTOR DI PLANT ditampilkan per perusahaan (PT)
 - Card "QTY KONTRAKTOR DI PLANT" di plant display kini menampilkan
   total (angka besar tetap) PLUS rincian jumlah karyawan per PT.
