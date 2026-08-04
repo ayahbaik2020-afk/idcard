@@ -30,7 +30,7 @@
 <div class="row stat-grid">
     <!-- MAN HOURS WITHOUT LTI -->
     <div class="col-md-4">
-        <div class="card stat-card bg-gradient-success mb-3">
+        <div class="card stat-card bg-gradient-success hvr-grow animate__animated animate__fadeInUp mb-3">
             <i class="fas fa-shield-alt card-icon-bg"></i>
             <div class="card-body">
                 <h5 class="card-title">MAN HOURS WITHOUT LTI</h5>
@@ -41,7 +41,7 @@
     </div>
     <!-- TOTAL KONTRAKTOR DALAM PLANT -->
     <div class="col-md-4">
-        <div class="card stat-card bg-gradient-primary mb-3">
+        <div class="card stat-card bg-gradient-primary hvr-grow animate__animated animate__fadeInUp mb-3">
             <i class="fas fa-users card-icon-bg"></i>
             <div class="card-body">
                 <h5 class="card-title">TOTAL KONTRAKTOR DALAM PLANT</h5>
@@ -52,7 +52,7 @@
     </div>
     <!-- Total Jenis Pelanggaran -->
     <div class="col-md-4">
-        <div class="card stat-card bg-gradient-danger mb-3">
+        <div class="card stat-card bg-gradient-danger hvr-grow animate__animated animate__fadeInUp mb-3">
             <i class="fas fa-exclamation-triangle card-icon-bg"></i>
             <div class="card-body">
                 <h5 class="card-title">TOTAL JENIS PELANGGARAN</h5>
@@ -63,7 +63,7 @@
     </div>
     <!-- Man Power Expired -->
     <div class="col-md-4">
-        <div class="card stat-card bg-gradient-warning mb-3">
+        <div class="card stat-card bg-gradient-warning hvr-grow animate__animated animate__fadeInUp mb-3">
             <i class="fas fa-id-card-alt card-icon-bg"></i>
             <div class="card-body">
                 <h5 class="card-title">MAN POWER EXPIRED</h5>
@@ -263,3 +263,4 @@ document.addEventListener('DOMContentLoaded', function () {
     pullBtn?.addEventListener('click', () => runSync('pull', pullBtn, 'Menarik'));
 });
 </script>
+
