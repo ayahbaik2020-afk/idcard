@@ -234,6 +234,9 @@ switch ($page) {
             case 'export':
                 $controller->export();
                 break;
+            case 'exportLog':
+                $controller->exportLog();
+                break;
             case 'index':
             default:
                 $controller->index();

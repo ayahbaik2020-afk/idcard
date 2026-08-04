@@ -52,6 +52,21 @@
 
 ## ✅ Selesai
 
+### 2026-08-04 — Export XLSX & PDF untuk kedua tabel log kehadiran
+- Kedua tabel log (per Perusahaan & per Man Power) kini punya tombol
+  **Export XLSX** dan **Export PDF** di header card masing-masing.
+- Install library baru: `dompdf/dompdf` v3.1 (renders HTML→PDF).
+- `AttendanceController`: logika periode dipindah ke helper
+  `buildLogData($period)` (dipakai index + export). Method baru
+  `exportLog()` + `exportLogXlsx()` + `exportLogPdf()` — format
+  diambil dari `?format=xlsx|pdf`, `log=company|person`, dan
+  `period` yang sedang aktif di halaman.
+- Route baru di `public/index.php`: `page=attendance&action=exportLog`.
+- PDF: A4 landscape, header + subtitle rentang tanggal, tabel dengan
+  zebra striping, kolom sesuai jenis log. XLSX: kolom auto-size.
+- Diverifikasi: keempat kombinasi (company/person × xlsx/pdf) return
+  200, magic bytes benar (`PK` untuk xlsx, `%PDF` untuk pdf).
+
 ### 2026-08-04 — Log kehadiran 2 tabel (per Perusahaan & per Man Power) + switcher periode
 - Halaman Daftar Kehadiran (`page=attendance`) kini punya 2 tabel log
   ringkasan: **per Perusahaan (PT)** dan **per Man Power**, keduanya

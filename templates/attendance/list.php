@@ -132,8 +132,15 @@
 <div class="row mt-4">
     <div class="col-12">
         <div class="card">
-            <div class="card-header">
-                <i class="fas fa-building me-2 text-primary"></i>Log Kehadiran per Perusahaan (PT)
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span><i class="fas fa-building me-2 text-primary"></i>Log Kehadiran per Perusahaan (PT)</span>
+                <span>
+                    <?php
+                        $log_qs = ['page' => 'attendance', 'action' => 'exportLog', 'log' => 'company', 'period' => $period];
+                    ?>
+                    <a href="index.php?<?php echo http_build_query($log_qs + ['format' => 'xlsx']); ?>" class="btn btn-sm btn-success"><i class="fas fa-file-excel me-1"></i>Export XLSX</a>
+                    <a href="index.php?<?php echo http_build_query($log_qs + ['format' => 'pdf']); ?>" class="btn btn-sm btn-danger"><i class="fas fa-file-pdf me-1"></i>Export PDF</a>
+                </span>
             </div>
             <div class="table-responsive">
                 <table class="table log-table">
@@ -175,8 +182,15 @@
 <div class="row mt-4">
     <div class="col-12">
         <div class="card">
-            <div class="card-header">
-                <i class="fas fa-user me-2 text-primary"></i>Log Kehadiran per Man Power (NIK KTP)
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span><i class="fas fa-user me-2 text-primary"></i>Log Kehadiran per Man Power (NIK KTP)</span>
+                <span>
+                    <?php
+                        $log_qs = ['page' => 'attendance', 'action' => 'exportLog', 'log' => 'person', 'period' => $period];
+                    ?>
+                    <a href="index.php?<?php echo http_build_query($log_qs + ['format' => 'xlsx']); ?>" class="btn btn-sm btn-success"><i class="fas fa-file-excel me-1"></i>Export XLSX</a>
+                    <a href="index.php?<?php echo http_build_query($log_qs + ['format' => 'pdf']); ?>" class="btn btn-sm btn-danger"><i class="fas fa-file-pdf me-1"></i>Export PDF</a>
+                </span>
             </div>
             <div class="table-responsive">
                 <table class="table log-table">

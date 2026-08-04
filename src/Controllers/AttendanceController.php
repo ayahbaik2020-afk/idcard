@@ -96,6 +96,26 @@ class AttendanceController
 
         // ---- Log tables (per period) ----
         $period = $_GET['period'] ?? 'week';
+        list($from, $to, $company_log, $person_log) = $this->buildLogData($period);
+
+        $data = compact('attendances', 'companies', 'search', 'plant', 'company_id', 'start_date', 'end_date', 'totals', 'pagination', 'period', 'from', 'to', 'company_log', 'person_log');
+
+        $content = '';
+        ob_start();
+        extract($data);
+        // The view file will be created in the next step
+        if (!file_exists(__DIR__ . '/../../templates/attendance/list.php')) {
+            // Create a placeholder file if it doesn't exist
+            $placeholder_content = "<h1>Attendance List</h1><p>Filters and table will be implemented here.</p>";
+            file_put_contents(__DIR__ . '/../../templates/attendance/list.php', $placeholder_content);
+        }
+        include __DIR__ . '/../../templates/attendance/list.php';
+        $content = ob_get_clean();
+        include __DIR__ . '/../../templates/layout.php';
+    }
+
+    protected function buildLogData($period)
+    {
         $valid_periods = ['day', 'week', 'month', 'year'];
         if (!in_array($period, $valid_periods, true)) {
             $period = 'week';
@@ -149,20 +169,130 @@ class AttendanceController
         $stmt->execute([$from, $to]);
         $person_log = $stmt->fetchAll();
 
-        $data = compact('attendances', 'companies', 'search', 'plant', 'company_id', 'start_date', 'end_date', 'totals', 'pagination', 'period', 'from', 'to', 'company_log', 'person_log');
+        return [$from, $to, $company_log, $person_log];
+    }
 
-        $content = '';
-        ob_start();
-        extract($data);
-        // The view file will be created in the next step
-        if (!file_exists(__DIR__ . '/../../templates/attendance/list.php')) {
-            // Create a placeholder file if it doesn't exist
-            $placeholder_content = "<h1>Attendance List</h1><p>Filters and table will be implemented here.</p>";
-            file_put_contents(__DIR__ . '/../../templates/attendance/list.php', $placeholder_content);
+    public function exportLog()
+    {
+        $format = $_GET['format'] ?? 'xlsx';
+        $log = $_GET['log'] ?? 'company';
+        $period = $_GET['period'] ?? 'week';
+
+        list($from, $to, $company_log, $person_log) = $this->buildLogData($period);
+
+        $rows = ($log === 'person') ? $person_log : $company_log;
+
+        if ($log === 'person') {
+            $title = 'Log Kehadiran per Man Power';
+            $columns = ['No.', 'Tanggal', 'Nama', 'Nama PT', 'Plant', 'Jumlah Kehadiran', 'Jumlah Jam Kerja'];
+        } else {
+            $title = 'Log Kehadiran per Perusahaan (PT)';
+            $columns = ['No.', 'Tanggal', 'Nama PT', 'Plant', 'Jumlah Kehadiran', 'Jumlah Jam Kerja'];
         }
-        include __DIR__ . '/../../templates/attendance/list.php';
-        $content = ob_get_clean();
-        include __DIR__ . '/../../templates/layout.php';
+
+        $subtitle = date('d M Y', strtotime($from)) . ' — ' . date('d M Y', strtotime($to));
+
+        if ($format === 'pdf') {
+            $this->exportLogPdf($title, $subtitle, $columns, $rows, $log);
+        } else {
+            $this->exportLogXlsx($title, $columns, $rows, $log);
+        }
+    }
+
+    protected function exportLogXlsx($title, $columns, $rows, $log)
+    {
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Log');
+
+        $sheet->fromArray($columns, null, 'A1');
+
+        $r = 2;
+        $no = 1;
+        foreach ($rows as $row) {
+            $data = [$no++, date('d M Y', strtotime($row['tanggal']))];
+            if ($log === 'person') {
+                $data[] = $row['contractor_name'];
+            }
+            $data[] = $row['company_name'];
+            $data[] = $row['plant'];
+            $data[] = (int) $row['jumlah_kehadiran'];
+            $data[] = (float) $row['jumlah_jam_kerja'];
+            $sheet->fromArray($data, null, 'A' . $r);
+            $r++;
+        }
+
+        // Auto-size columns
+        foreach (range('A', chr(64 + count($columns))) as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="log_kehadiran_' . $log . '_' . date('Y-m-d') . '.xlsx"');
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $writer->save('php://output');
+        exit();
+    }
+
+    protected function exportLogPdf($title, $subtitle, $columns, $rows, $log)
+    {
+        $rows_html = '';
+        $no = 1;
+        foreach ($rows as $row) {
+            $tanggal = date('d M Y', strtotime($row['tanggal']));
+            $company = htmlspecialchars($row['company_name']);
+            $plant = htmlspecialchars($row['plant']);
+            $hadir = (int) $row['jumlah_kehadiran'];
+            $jam = number_format((float) $row['jumlah_jam_kerja'], 2);
+            if ($log === 'person') {
+                $nama = htmlspecialchars($row['contractor_name']);
+                $rows_html .= "<tr><td>{$no}</td><td>{$tanggal}</td><td>{$nama}</td><td>{$company}</td><td>{$plant}</td><td>{$hadir}</td><td>{$jam}</td></tr>";
+            } else {
+                $rows_html .= "<tr><td>{$no}</td><td>{$tanggal}</td><td>{$company}</td><td>{$plant}</td><td>{$hadir}</td><td>{$jam}</td></tr>";
+            }
+            $no++;
+        }
+
+        if ($rows_html === '') {
+            $colspan = count($columns);
+            $rows_html = "<tr><td colspan=\"{$colspan}\" style=\"text-align:center;color:#888;\">Tidak ada data pada periode ini.</td></tr>";
+        }
+
+        $headers_html = '';
+        foreach ($columns as $col) {
+            $headers_html .= "<th>{$col}</th>";
+        }
+
+        $html = '
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+    body { font-family: DejaVu Sans, sans-serif; font-size: 10px; color: #1e293b; }
+    h2 { margin: 0 0 2px 0; color: #0f172a; }
+    .subtitle { margin: 0 0 14px 0; color: #64748b; font-size: 9px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #f1f5f9; color: #334155; font-weight: bold; padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left; }
+    td { padding: 5px 8px; border: 1px solid #e2e8f0; }
+    tr:nth-child(even) td { background: #f8fafc; }
+</style>
+</head>
+<body>
+    <h2>' . $title . '</h2>
+    <p class="subtitle">' . htmlspecialchars($subtitle) . '</p>
+    <table>
+        <thead><tr>' . $headers_html . '</tr></thead>
+        <tbody>' . $rows_html . '</tbody>
+    </table>
+</body>
+</html>';
+
+        $dompdf = new \Dompdf\Dompdf();
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'landscape');
+        $dompdf->render();
+        $dompdf->stream('log_kehadiran_' . $log . '_' . date('Y-m-d') . '.pdf', ['Attachment' => true]);
+        exit();
     }
 
     public function export()
