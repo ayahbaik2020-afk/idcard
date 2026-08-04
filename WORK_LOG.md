@@ -91,22 +91,27 @@
    langsung di layar TV/tablet fisik plant (kontras kartu vs video,
    ukuran font, posisi scanner). Tidak bisa diverifikasi dari sesi kerja
    remote manapun tanpa akses fisik ke perangkat di lapangan.
-4. **Commit & push belum dilakukan untuk auto-reaktivasi** (sesi
-   2026-08-03 sore). File berubah: `src/Repositories/ContractorRepository.php`,
-   `src/Services/ContractorService.php`, `src/Controllers/SanctionController.php`,
-   `src/Controllers/DashboardController.php`, `scripts/sync_from_cloud.php`,
-   `WORK_LOG.md`. `--push` sudah dijalankan manual (cloud konsisten),
-   tapi perubahan kode lokal belum di-commit. Lanjut besok: `git add`,
-   commit, push (kalau user minta).
-5. **Pertanyaan desain SP1/SP2 vs blacklist mobile**: `applySanctionToContractor`
-   juga set `status='Banned'` untuk SP1/SP2, tapi view `active_bans`
-   (sumber snapshot `synced_active_bans` untuk blacklist mobile) hanya
-   menyaring `sanction_type='BANNED'`. Artinya kontraktor SP1/SP2
-   diblokir di sistem lokal (AttendanceController) tapi TIDAK di blokir
-   registrasi mobile. Perlu keputusan user: apakah SP1/SP2 juga harus
-   memblokir registrasi mobile? Kalau ya, sesuaikan view + query.
 
 ## ✅ Selesai
+
+### 2026-08-04 — SP1/SP2 juga memicu peringatan blacklist di registrasi mobile
+- Per keputusan user: peringatan blacklist di registrasi mobile harus
+  muncul jika man power punya **pelanggaran** apa pun, bukan hanya BANNED.
+  Karena `applySanctionToContractor` (ContractorService) sudah set
+  `status='Banned'` untuk BANNED, SP1, dan SP2, view `active_bans` diperluas
+  dari `sanction_type = 'BANNED'` menjadi `IN ('BANNED','SP1','SP2')`.
+- File: `database/schema.sql` (source of truth) + migration baru
+  `database/migrations/2026_08_04_broaden_active_bans_to_sp1_sp2.sql`
+  (sudah dijalankan ke DB lokal). View terverifikasi via `SHOW CREATE VIEW`.
+- UI mobile blacklist sudah generik (header "NIK ini masuk daftar sanksi
+  aktif", menampilkan `sanction_type`, `is_permanent`, `end_date`, `reason`),
+  jadi TIDAK perlu perubahan kode mobile — cukup data `synced_active_bans`
+  yang sekarang menyertakan SP1/SP2.
+- `SanctionController::release()` juga ikut disesuaikan: cek "sanksi aktif
+  lain" sekarang menghitung BANNED/SP1/SP2 (sebelumnya cuma BANNED), supaya
+  melepas satu sanksi tidak men-set status Active kalau masih ada SP1/SP2.
+- `--push` dijalankan: snapshot `synced_active_bans` ter-update di cloud
+  (saat ini isi tetap 1 — hanya ada sanksi BANNED aktif).
 
 ### 2026-08-03 — Konsistensi status Banned vs sanksi (auto-reaktivasi)
 - **Anomali**: kontraktor `26.0006` (matilahkaubujang) berstatus `Banned`

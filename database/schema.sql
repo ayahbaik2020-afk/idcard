@@ -102,9 +102,10 @@ CREATE TABLE `sanctions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- Convenience view used by getActiveBansSnapshot() to push the current
--- ban list up to Supabase for the mobile apps: every BANNED sanction that
--- hasn't been revoked and hasn't expired (or is permanent).
-CREATE VIEW `active_bans` AS
+-- blacklist up to Supabase for the mobile apps: every active sanction
+-- (BANNED/SP1/SP2 — the three types that set a contractor's status to
+-- 'Banned') that hasn't been revoked and hasn't expired (or is permanent).
+CREATE OR REPLACE VIEW `active_bans` AS
     SELECT
         s.id, s.contractor_id, s.violation_id, s.sanction_type, s.start_date,
         s.end_date, s.is_permanent, s.revoked_at, s.revoked_by, s.revoke_reason,
@@ -112,7 +113,7 @@ CREATE VIEW `active_bans` AS
         c.ktp_no, c.name AS contractor_name, c.company_id
     FROM sanctions s
     JOIN contractors c ON c.id = s.contractor_id
-    WHERE s.sanction_type = 'BANNED'
+    WHERE s.sanction_type IN ('BANNED', 'SP1', 'SP2')
       AND s.revoked_at IS NULL
       AND (s.is_permanent = 1 OR s.end_date IS NULL OR s.end_date >= CURDATE());
 

@@ -244,8 +244,8 @@ class SanctionController
         $update_stmt = $this->pdo->prepare("\n            UPDATE sanctions \n            SET end_date = DATE_SUB(CURDATE(), INTERVAL 1 DAY), is_permanent = 0 \n            WHERE id = ?\n        ");
         $update_stmt->execute([$id]);
 
-        // Check if the contractor has any other active BANNED sanctions
-        $check_stmt = $this->pdo->prepare("\n            SELECT COUNT(*) \n            FROM sanctions \n            WHERE contractor_id = ? \n            AND sanction_type = 'BANNED' \n            AND (is_permanent = 1 OR end_date >= CURDATE())\n        ");
+        // Check if the contractor has any other active sanctions (BANNED/SP1/SP2)
+        $check_stmt = $this->pdo->prepare("\n            SELECT COUNT(*) \n            FROM sanctions \n            WHERE contractor_id = ? \n            AND sanction_type IN ('BANNED', 'SP1', 'SP2') \n            AND (is_permanent = 1 OR end_date >= CURDATE())\n        ");
         $check_stmt->execute([$contractor_id]);
         $active_bans = $check_stmt->fetchColumn();
 
