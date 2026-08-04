@@ -5,6 +5,7 @@ import { supabase, type ActiveBan } from "@/lib/supabase";
 import { scanKtp, isPlausibleNik, type KtpOcrResult } from "@/lib/ocr";
 import { useSyncStatus } from "@/lib/useSyncStatus";
 import CameraCapture from "@/components/CameraCapture";
+import BackButton from "@/components/BackButton";
 
 const PLANTS = [
   "CA PLANT",
@@ -280,9 +281,34 @@ export default function RegisterPage() {
     });
   }
 
+  function handleBack() {
+    switch (step) {
+      case "ktp":
+      case "photo":
+      case "duplicate":
+      case "reactivate":
+        setStep("ktp");
+        break;
+      case "blacklist":
+      case "done":
+        setStep("company");
+        break;
+      case "company":
+        window.location.href = "/";
+        break;
+    }
+  }
+
   return (
     <main className="flex-1 p-5 max-w-sm mx-auto w-full flex flex-col gap-5">
-      <h1 className="text-lg font-semibold">Registrasi Man Power</h1>
+      <div className="flex items-center justify-between gap-3">
+        <BackButton
+          href={step === "company" ? "/" : undefined}
+          onClick={step === "company" ? undefined : handleBack}
+          label={step === "company" ? "Beranda" : "Kembali"}
+        />
+        <h1 className="text-lg font-semibold">Registrasi Man Power</h1>
+      </div>
 
       {error && (
         <p className="text-sm text-red-400 bg-red-950/50 border border-red-900 rounded-lg p-3">

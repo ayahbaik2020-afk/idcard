@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import BackButton from "@/components/BackButton";
 
 type ContractorProfile = {
   id_card: string;
@@ -148,9 +149,31 @@ export default function P2K3Page() {
     }
   }
 
+  function handleBack() {
+    switch (screen) {
+      case "profile":
+      case "sanction-sent":
+        setScreen("scan");
+        break;
+      case "new-sanction":
+        setScreen("profile");
+        break;
+      case "scan":
+        window.location.href = "/";
+        break;
+    }
+  }
+
   return (
     <main className="flex-1 p-5 max-w-sm mx-auto w-full flex flex-col gap-5">
-      <h1 className="text-lg font-semibold">Pengawasan P2K3</h1>
+      <div className="flex items-center justify-between gap-3">
+        <BackButton
+          href={screen === "scan" ? "/" : undefined}
+          onClick={screen === "scan" ? undefined : handleBack}
+          label={screen === "scan" ? "Beranda" : "Kembali"}
+        />
+        <h1 className="text-lg font-semibold">Pengawasan P2K3</h1>
+      </div>
 
       {screen === "scan" && (
         <div className="flex flex-col gap-3">

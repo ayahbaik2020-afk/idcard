@@ -4,13 +4,22 @@
             <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <div>
                     <h5 class="mb-1"><i class="fas fa-sync-alt me-2 text-primary"></i>Sinkronisasi Mobile App</h5>
-                    <small class="text-muted">Tarik registrasi/sanksi baru dari HP, lalu kirim update blacklist &amp; daftar PT terbaru ke cloud.</small>
+                    <small class="text-muted">Kirim data terbaru (blacklist, daftar PT, direktori kontraktor) ke cloud untuk aplikasi mobile. Registrasi dari HP masuk ke sistem secara otomatis via penjadwalan.</small>
                 </div>
                 <div class="text-end">
-                    <button id="sync-now-btn" class="btn btn-primary" type="button">
-                        <i class="fas fa-sync-alt me-1"></i> Sync Now
-                    </button>
+                    <?php if (($_SESSION['user_role'] ?? '') === 'Super Admin'): ?>
+                    <div class="d-flex gap-2 justify-content-end flex-wrap">
+                        <button id="sync-push-btn" class="btn btn-primary" type="button">
+                            <i class="fas fa-upload me-1"></i> Kirim
+                        </button>
+                        <button id="sync-pull-btn" class="btn btn-secondary" type="button">
+                            <i class="fas fa-download me-1"></i> Tarik
+                        </button>
+                    </div>
                     <div id="sync-now-status" class="small mt-1"></div>
+                    <?php else: ?>
+                    <span class="badge bg-secondary">Hanya Super Admin yang bisa sync manual</span>
+                    <?php endif; ?>
                 </div>
             </div>
             <pre id="sync-now-log" class="d-none m-0 p-3 bg-dark text-light small" style="max-height:220px; overflow:auto;"></pre>
@@ -209,23 +218,31 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 document.addEventListener('DOMContentLoaded', function () {
-    const btn = document.getElementById('sync-now-btn');
+    const pushBtn = document.getElementById('sync-push-btn');
+    const pullBtn = document.getElementById('sync-pull-btn');
     const status = document.getElementById('sync-now-status');
     const log = document.getElementById('sync-now-log');
-    if (!btn) return;
+    if (!pushBtn && !pullBtn) return;
 
-    btn.addEventListener('click', function () {
+    function runSync(mode, btn, verb) {
+        if (!btn) return;
+        const original = btn.innerHTML;
         btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Menyinkronkan...';
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> ' + verb + '...';
         status.textContent = '';
+        status.className = 'small mt-1';
         log.classList.add('d-none');
 
-        fetch('sync_now.php', { method: 'POST' })
+        fetch('sync_now.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mode: mode }),
+        })
             .then((r) => r.json())
             .then((data) => {
                 status.textContent = data.ok
-                    ? 'Sync berhasil.'
-                    : 'Sync gagal (lihat log di bawah).';
+                    ? (mode === 'push' ? 'Kirim berhasil. Data terbaru sudah di cloud.' : 'Tarik berhasil. Data dari HP sudah masuk sistem lokal.')
+                    : 'Gagal (lihat log di bawah).';
                 status.className = 'small mt-1 ' + (data.ok ? 'text-success' : 'text-danger');
                 if (data.log) {
                     log.textContent = data.log;
@@ -238,8 +255,11 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .finally(() => {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Sync Now';
+                btn.innerHTML = original;
             });
-    });
+    }
+
+    pushBtn?.addEventListener('click', () => runSync('push', pushBtn, 'Mengirim'));
+    pullBtn?.addEventListener('click', () => runSync('pull', pullBtn, 'Menarik'));
 });
 </script>

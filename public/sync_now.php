@@ -3,9 +3,15 @@
 session_start();
 header('Content-Type: application/json');
 
-// Manual trigger for scripts/sync_from_cloud.php, called via AJAX from a
-// "Sync Now" button in the local dashboard. Auth-gated the same way as
+// Manual trigger for scripts/sync_from_cloud.php, called via AJAX from the
+// two buttons in the local dashboard. Auth-gated the same way as
 // reset_attendance.php: Super Admin session + POST only.
+//
+// Mode dikirim lewat body JSON:
+//   mode = "push" -> tombol "Kirim": kirim snapshot data terbaru ke
+//                     Vercel/Supabase (scripts/sync_from_cloud.php --push).
+//   mode = "pull" -> tombol "Tarik": tarik registrasi/sanksi baru dari
+//                     cloud lalu masukkan ke sistem lokal (--pull).
 
 if (empty($_SESSION['user_id']) || ($_SESSION['user_role'] ?? '') !== 'Super Admin') {
     http_response_code(403);
@@ -18,6 +24,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['ok' => false, 'error' => 'Method Not Allowed']);
     exit;
 }
+
+$body = json_decode(file_get_contents('php://input'), true);
+$mode = $body['mode'] ?? 'push';
+if (!in_array($mode, ['push', 'pull'], true)) {
+    $mode = 'push';
+}
+$flag = $mode === 'pull' ? '--pull' : '--push';
 
 $scriptPath = __DIR__ . '/../scripts/sync_from_cloud.php';
 
@@ -35,10 +48,11 @@ if (stripos(basename($phpBinary), 'cgi') !== false) {
 
 $output = [];
 $exitCode = 0;
-exec(escapeshellarg($phpBinary) . ' ' . escapeshellarg($scriptPath) . ' 2>&1', $output, $exitCode);
+exec(escapeshellarg($phpBinary) . ' ' . escapeshellarg($scriptPath) . ' ' . $flag . ' 2>&1', $output, $exitCode);
 
 echo json_encode([
     'ok' => $exitCode === 0,
+    'mode' => $mode,
     'exit_code' => $exitCode,
     'log' => implode("\n", $output),
 ]);
