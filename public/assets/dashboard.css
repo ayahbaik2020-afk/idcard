@@ -1311,39 +1311,67 @@ body.sidebar-collapsed .main-content { margin-left: var(--sidebar-w-collapsed); 
    22. ONE-PAGE DASHBOARD — everything inside one viewport
    Desktop: NO page scroll. Long data scrolls internally.
    ============================================================ */
+
+/* Hard-lock the whole app to one screen (no page scrollbar) */
+body.page-dashboard {
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+}
+
+body.page-dashboard .main-content {
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+}
+
 .content-dashboard {
+    flex: 1;
+    min-height: 0;
+    height: calc(100vh - var(--nav-h));
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    padding: clamp(10px, 1.4vw, 16px);
-}
-
-/* Keep the whole app shell locked to one screen on desktop */
-body.page-dashboard .main-content {
-    height: 100vh;
-    overflow: hidden;
+    padding: clamp(8px, 1vw, 12px);
 }
 
 .content-dashboard > .alert {
     padding: 8px 14px;
     margin-bottom: 10px;
     font-size: 13px;
+    flex-shrink: 0;
 }
 
+/* Fixed proportional rows => content can NEVER push the page taller */
 .dashboard-grid {
     flex: 1;
     min-height: 0;
     display: grid;
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto clamp(200px, 26vh, 260px) minmax(0, 1fr);
-    gap: clamp(10px, 1.4vw, 14px);
+    grid-template-rows:
+        clamp(60px, 9vh, 72px)     /* sync bar   */
+        clamp(108px, 15.5vh, 128px) /* stat cards */
+        clamp(190px, 24vh, 250px)  /* charts      */
+        minmax(0, 1fr);            /* banned      */
+    gap: clamp(8px, 1.2vw, 12px);
     overflow: hidden;
 }
 
+.dashboard-grid > * {
+    min-height: 0;
+}
+
 /* --- 22.1 Mobile App sync bar (70-80px) --- */
+.sync-bar {
+    height: 100%;
+}
+
 .sync-bar .card-body {
-    padding: 10px 16px;
-    min-height: 72px;
+    padding: 8px 14px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
 .sync-bar-inner {
@@ -1473,8 +1501,15 @@ body.page-dashboard .main-content {
 
 /* One-page dashboard: tablet & mobile fall back to normal page flow */
 @media (max-width: 991.98px) {
+    body.page-dashboard {
+        height: auto;
+        max-height: none;
+        overflow: visible;
+    }
+
     body.page-dashboard .main-content {
         height: auto;
+        max-height: none;
         overflow: visible;
     }
 
@@ -1482,7 +1517,13 @@ body.page-dashboard .main-content {
         overflow: auto;
         display: block;
         height: auto;
+        min-height: 0;
         padding: 14px;
+    }
+
+    .sync-bar,
+    .sync-bar .card-body {
+        height: auto;
     }
 
     .dashboard-grid {
