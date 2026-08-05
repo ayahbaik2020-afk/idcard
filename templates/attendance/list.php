@@ -139,6 +139,7 @@
                 <option value="EDC/VCM PLANT" <?php echo $log_plant == 'EDC/VCM PLANT' ? 'selected' : ''; ?>>EDC/VCM PLANT</option>
             </select>
         </form>
+        <a href="index.php?page=attendance" class="btn btn-sm btn-outline-danger"><i class="fas fa-undo me-1"></i>Reset</a>
         <span class="ms-2 text-muted small"><?php echo date('d M Y', strtotime($from)); ?> — <?php echo date('d M Y', strtotime($to)); ?></span>
     </div>
 </div>

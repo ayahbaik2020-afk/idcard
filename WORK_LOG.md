@@ -52,6 +52,24 @@
 
 ## ✅ Selesai
 
+### 2026-08-04 — Data dummy (~100 man power) + foto profil + tombol Reset filter log
+- **Tombol Reset** di baris switcher periode log: kembali ke default
+  (periode minggu, semua plant) via `index.php?page=attendance`.
+- **Data dummy 100 man power** (script temp, tidak di-commit):
+  - 6 perusahaan kontraktor baru (PT. Karya Utama Jaya, PT. Sinar
+    Abadi Mandiri, PT. Mitra Teknik Nusantara, PT. Bumi Persada,
+    PT. Cipta Konstruksi, PT. Prima Elektrindo).
+  - 100 kontraktor nama Indonesia random, tersebar di 14 perusahaan.
+  - 1060 attendance dari awal 2026, hanya di 4 plant (CA/EDC/VCM/PVC),
+    jam kerja 6-12 jam random, pola "campaign" per perusahaan: ada
+    yang kerja 1 minggu saja di CA PLANT (PT. SHK), ada yang 1 bulan
+    di PVC PLANT + 2 minggu di EDC PLANT (PT. PKU), dsb.
+  - Dihapus dengan: `php seed_dummy_attendance.php --clean`.
+- **Foto profil dummy**: 100 avatar PNG dibuat via GD (gradient warna
+  unik per nama + inisial), disimpan di `public/uploads/photos/`
+  (`<ktp>_<hex>.png`, sesuai konvensi nama file aplikasi), kolom
+  `photo` di-update. Render 200 + PNG valid terverifikasi.
+
 ### 2026-08-04 — Filter plant untuk kedua tabel log kehadiran
 - Switcher periode log (Hari/Minggu/Bulan/Tahun) kini punya dropdown
   **Plant** (Semua/CA/EDC/VCM/PVC/MEI/HPI/EDC/VCM) yang ikut
