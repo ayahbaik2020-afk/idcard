@@ -13,9 +13,9 @@ header('Content-Type: application/json');
 //   mode = "pull" -> tombol "Tarik": tarik registrasi/sanksi baru dari
 //                     cloud lalu masukkan ke sistem lokal (--pull).
 
-if (empty($_SESSION['user_id']) || ($_SESSION['user_role'] ?? '') !== 'Super Admin') {
+if (empty($_SESSION['user_id']) || !in_array($_SESSION['user_role'] ?? '', ['Super Admin', 'Admin Plant'], true)) {
     http_response_code(403);
-    echo json_encode(['ok' => false, 'error' => 'Forbidden: hanya Super Admin yang login yang boleh menjalankan sync.']);
+    echo json_encode(['ok' => false, 'error' => 'Forbidden: hanya Super Admin / Admin Plant yang login yang boleh menjalankan sync.']);
     exit;
 }
 

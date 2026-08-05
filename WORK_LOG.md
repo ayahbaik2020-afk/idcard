@@ -52,6 +52,22 @@
 
 ## ✅ Selesai
 
+### 2026-08-04 — Semua role "Admin Plant" bisa Kirim/Tarik Sinkronisasi Mobile App
+- Sebelumnya tombol Kirim/Tarik hanya untuk Super Admin
+  (`dashboard.php` dan `sync_now.php`). Kini role `Admin Plant` juga
+  diizinkan (sesuai keputusan user — cakupan semua akun Admin Plant,
+  bukan cuma admin@example.com).
+- `templates/dashboard.php`: kondisi `!== 'Super Admin'` diganti
+  `!in_array(..., ['Super Admin','Admin Plant'], true)` untuk teks
+  status dan pembungkus tombol; teks "Hanya Super Admin yang bisa sync
+  manual" → "Hanya Admin yang bisa sync manual".
+- `public/sync_now.php`: guard auth memakai `in_array(...)` yang sama,
+  pesan 403 diperbarui.
+- Diverifikasi: harness CLI untuk tiap role (Super Admin ✓, Admin
+  Plant ✓, User ✗, kosong ✗, tanpa session ✗) semua PASS; render
+  dashboard dengan session Admin Plant menampilkan tombol Kirim/Tarik
+  dan pesan "Hanya Super Admin" hilang. `php -l` bersih.
+
 ### 2026-08-04 — Data dummy (~100 man power) + foto profil + tombol Reset filter log
 - **Tombol Reset** di baris switcher periode log: kembali ke default
   (periode minggu, semua plant) via `index.php?page=attendance`.

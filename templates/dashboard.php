@@ -9,11 +9,11 @@
                     <div class="sync-bar-text">
                         <div class="sync-bar-heading">Sinkronisasi Mobile App</div>
                         <div class="sync-bar-sub" id="sync-now-status">
-                            <?php if (($_SESSION['user_role'] ?? '') !== 'Super Admin'): ?>Hanya Super Admin yang bisa sync manual<?php endif; ?>
+                            <?php if (!in_array($_SESSION['user_role'] ?? '', ['Super Admin', 'Admin Plant'], true)): ?>Hanya Admin yang bisa sync manual<?php endif; ?>
                         </div>
                     </div>
                 </div>
-                <?php if (($_SESSION['user_role'] ?? '') === 'Super Admin'): ?>
+                <?php if (in_array($_SESSION['user_role'] ?? '', ['Super Admin', 'Admin Plant'], true)): ?>
                 <div class="d-flex gap-2">
                     <button id="sync-push-btn" class="btn btn-primary" type="button">
                         <i class="fas fa-upload me-1"></i> Kirim
