@@ -52,6 +52,34 @@
 
 ## ✅ Selesai
 
+### 2026-08-06 — Materi presentasi "Pengenalan ID Card System" (30 menit)
+- Deliverable materi presentasi untuk Tim Internal / P2K3 / Admin Plant,
+  mengikuti framework 10 langkah user (Analisis → Riset → Outline →
+  Slide detail → Storytelling → Sederhanakan → Speaker Notes → Desain →
+  Nilai tambah → Quality Check). Output dua format:
+  - `bahan_presentasi/presentasi-idcard-system.md` — dokumen penuh 17
+    slide (Tujuan / Isi / Point Utama / Penjelasan / Contoh/Analogi /
+    Visual / Icon / Warna / Animasi / Catatan Presenter / Durasi) +
+    Lampiran Referensi + Checklist Penyampaian. Total durasi ±30 menit
+    (3 babak: Masalah 1–6, Solusi 7–14, Bukti & Ajak bertindak 15–17).
+  - `bahan_presentasi/presentasi-idcard-system.html` — slide deck
+    interaktif 17 slide: navigasi keyboard (←/→/Space/Home/End), toggle
+    catatan presenter (N / tombol 📝), progress bar, counter, tema dark
+    untuk hero & plant display, screenshot tertanam per slide.
+- Slide 9 = **Cetak ID Card** (fitur `printIdCard` / `bulkPrint` di
+  `ContractorController` + template `templates/contractors/bulk_id_card.php`):
+  cetak tunggal & massal, A4 portrait 3 kartu/lembar (±68,5×97mm),
+  foto + QR + nama + perusahaan + plant, background per plant dari
+  `public/uploads/background`.
+- Screenshot fitur diambil dari sistem (`bahan_presentasi/`): dashboard,
+  attendance-a/b, contractors, bulkPrint, plant-display, sanctions,
+  expired_contractors, plant_contractors, settings (companies/user/system/
+  violations).
+- Catatan: angka KPI di slide diberi tanda perlu validasi sebelum
+  dipublikasi; screenshot deskripsi berdasar nama file (konten gambar
+  tidak diverifikasi visual saat penyusunan). Durasi presenter sudah
+  disesuaikan agar total ≈30 menit.
+
 ### 2026-08-04 — Semua role "Admin Plant" bisa Kirim/Tarik Sinkronisasi Mobile App
 - Sebelumnya tombol Kirim/Tarik hanya untuk Super Admin
   (`dashboard.php` dan `sync_now.php`). Kini role `Admin Plant` juga

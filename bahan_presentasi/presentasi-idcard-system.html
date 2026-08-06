@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ID Card System — Presentasi Pengenalan</title>
+<style>
+  :root {
+    --navy: #0F172A;
+    --navy-2: #1E293B;
+    --teal: #0D9488;
+    --teal-light: #2DD4BF;
+    --amber: #F59E0B;
+    --amber-light: #FCD34D;
+    --red: #EF4444;
+    --emerald: #10B981;
+    --white: #FFFFFF;
+    --slate-100: #F1F5F9;
+    --slate-300: #CBD5E1;
+    --slate-500: #64748B;
+    --shadow: 0 20px 60px rgba(15,23,42,.25);
+    --radius: 18px;
+    --sans: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--sans);
+    background: #0B1120;
+    color: var(--navy);
+    overflow: hidden;
+  }
+
+  /* ---- Deck shell ---- */
+  .deck { position: fixed; inset: 0; }
+  .slide {
+    position: absolute; inset: 0;
+    display: none;
+    flex-direction: column;
+    padding: clamp(40px, 6vh, 72px) clamp(48px, 7vw, 120px);
+    background: var(--white);
+    overflow: hidden;
+  }
+  .slide.active { display: flex; animation: slideIn .5s ease; }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(40px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  /* Theme: dark (hero, plant display) */
+  .slide.dark { background: linear-gradient(135deg, #0F172A 0%, #16223A 55%, #0D4A44 130%); color: var(--white); }
+  .slide.dark .kicker { color: var(--amber-light); }
+  .slide.dark h1, .slide.dark h2 { color: var(--white); }
+
+  /* ---- Typography ---- */
+  .kicker {
+    display: inline-block;
+    font-size: 13px; font-weight: 700; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--teal);
+    margin-bottom: 14px;
+  }
+  h1 { font-size: clamp(34px, 5vw, 64px); line-height: 1.05; font-weight: 800; letter-spacing: -0.02em; }
+  h2 { font-size: clamp(26px, 3.4vw, 42px); font-weight: 800; letter-spacing: -0.01em; margin-bottom: 18px; }
+  h2 .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; border-radius: 12px;
+    background: var(--teal); color: #fff; font-size: 20px; margin-right: 12px;
+    vertical-align: -6px;
+  }
+  h2 .num.amber { background: var(--amber); }
+  .sub { color: var(--slate-500); font-size: 16px; max-width: 720px; margin-bottom: 26px; }
+  .slide.dark .sub { color: var(--slate-300); }
+
+  /* ---- Layout helpers ---- */
+  .slide-body { flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 0; }
+  .row { display: flex; gap: 24px; align-items: stretch; flex-wrap: wrap; }
+  .grow { flex: 1 1 0; min-width: 240px; }
+  .footer {
+    margin-top: auto; padding-top: 20px; border-top: 1px solid var(--slate-300);
+    color: var(--slate-500); font-size: 12px; letter-spacing: .04em;
+  }
+  .slide.dark .footer { border-color: rgba(255,255,255,.15); color: var(--slate-300); }
+
+  /* ---- Cards ---- */
+  .card {
+    background: #fff; border: 1px solid #E2E8F0; border-radius: var(--radius);
+    padding: 22px; box-shadow: 0 4px 16px rgba(15,23,42,.05);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .dark .card { background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.12); color: #fff; }
+  .card i { font-size: 26px; margin-bottom: 6px; }
+  .card h4 { font-size: 16px; font-weight: 700; }
+  .card p { font-size: 13.5px; color: var(--slate-500); line-height: 1.55; }
+  .dark .card p { color: var(--slate-300); }
+
+  /* ---- Steps / timeline ---- */
+  .steps { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+  .steps li {
+    display: flex; gap: 16px; align-items: flex-start;
+    background: var(--slate-100); border-radius: 14px; padding: 14px 18px;
+  }
+  .dark .steps li { background: rgba(255,255,255,.06); }
+  .step-num {
+    flex: 0 0 auto; width: 34px; height: 34px; border-radius: 10px;
+    background: var(--teal); color: #fff; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  .step-num.amber { background: var(--amber); }
+  .step-num.red { background: var(--red); }
+  .steps b { display: block; font-size: 15px; }
+  .steps span { font-size: 13.5px; color: var(--slate-500); line-height: 1.5; }
+  .dark .steps span { color: var(--slate-300); }
+
+  /* ---- Flow (horizontal) ---- */
+  .flow { display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; }
+  .flow .node {
+    flex: 1 1 140px; text-align: center; background: var(--slate-100);
+    border-radius: 14px; padding: 16px 10px; position: relative;
+  }
+  .dark .flow .node { background: rgba(255,255,255,.06); }
+  .flow .node i { font-size: 24px; color: var(--teal); margin-bottom: 8px; display: block; }
+  .flow .node b { font-size: 13px; display: block; }
+  .flow .arrow { align-self: center; color: var(--amber); font-size: 20px; font-weight: 900; }
+
+  /* ---- Screenshot ---- */
+  .shot-wrap {
+    border-radius: var(--radius); overflow: hidden;
+    box-shadow: var(--shadow); border: 6px solid #fff; background: #fff;
+    flex: 1 1 320px; min-width: 280px; max-width: 560px;
+  }
+  .shot-wrap img { display: block; width: 100%; height: auto; }
+  .shot-cap { font-size: 11.5px; color: var(--slate-500); text-align: center; padding: 8px; }
+  .dark .shot-cap { color: var(--slate-300); }
+
+  /* ---- Stats (before/after) ---- */
+  .stat { text-align: center; padding: 22px; }
+  .stat .v { font-size: clamp(30px, 4vw, 46px); font-weight: 800; letter-spacing: -.02em; }
+  .stat .l { font-size: 13px; color: var(--slate-500); margin-top: 4px; }
+  .dark .stat .l { color: var(--slate-300); }
+
+  /* ---- CTAs ---- */
+  .cta {
+    display: inline-block; background: linear-gradient(135deg, var(--amber), #D97706);
+    color: #fff !important; font-weight: 800; padding: 14px 28px; border-radius: 14px;
+    font-size: 18px; box-shadow: 0 10px 30px rgba(245,158,11,.4);
+  }
+  .badge-demo {
+    display: inline-block; background: var(--emerald); color: #fff;
+    padding: 10px 20px; border-radius: 12px; font-weight: 700; font-size: 15px;
+  }
+
+  /* ---- Agenda ---- */
+  .agenda { display: flex; flex-direction: column; gap: 16px; max-width: 640px; }
+  .agenda .a {
+    display: flex; align-items: center; gap: 16px; padding: 16px 20px;
+    background: var(--slate-100); border-radius: 14px;
+  }
+  .dark .agenda .a { background: rgba(255,255,255,.06); }
+  .agenda .n { font-size: 22px; font-weight: 800; color: var(--teal); width: 40px; }
+  .agenda .t { font-size: 16px; font-weight: 700; }
+  .agenda .d { font-size: 12.5px; color: var(--slate-500); }
+  .dark .agenda .d { color: var(--slate-300); }
+
+  /* ---- Quiz/hook ---- */
+  .hook {
+    font-size: clamp(24px, 3.4vw, 40px); font-weight: 800; line-height: 1.35;
+    max-width: 980px; margin-bottom: 28px;
+  }
+  .hook .hl { color: var(--amber-light); }
+
+  /* ---- Nav controls ---- */
+  .nav {
+    position: fixed; right: 22px; bottom: 22px; display: flex; gap: 10px; z-index: 50;
+  }
+  .nav button {
+    width: 46px; height: 46px; border: 0; border-radius: 14px; cursor: pointer;
+    background: rgba(255,255,255,.1); color: #fff; font-size: 18px;
+    backdrop-filter: blur(8px); transition: .2s;
+  }
+  .nav button:hover { background: rgba(255,255,255,.25); }
+  .counter {
+    position: fixed; right: 22px; top: 20px; z-index: 50;
+    background: rgba(15,23,42,.75); color: #fff; padding: 8px 16px; border-radius: 999px;
+    font-size: 13px; font-weight: 700; backdrop-filter: blur(8px);
+  }
+  .progress {
+    position: fixed; left: 0; top: 0; height: 4px; background: linear-gradient(90deg, var(--teal), var(--amber));
+    z-index: 60; width: 0%; transition: width .3s;
+  }
+  .speaker-note {
+    position: fixed; left: 22px; bottom: 22px; z-index: 50; max-width: 46%;
+    background: rgba(15,23,42,.92); color: #E2E8F0; border-radius: 14px;
+    padding: 14px 18px; font-size: 13px; line-height: 1.5; backdrop-filter: blur(8px);
+    display: none; border: 1px solid rgba(255,255,255,.1);
+  }
+  .speaker-note.show { display: block; }
+  .speaker-note b { color: var(--amber-light); }
+
+  /* ---- Responsive ---- */
+  @media (max-width: 900px) {
+    .slide { padding: 24px; overflow-y: auto; }
+    .row { flex-direction: column; }
+    .speaker-note { max-width: 80%; }
+    .hook { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+<div class="progress" id="progress"></div>
+<div class="counter" id="counter">1 / 17</div>
+
+<!-- ============ SLIDE 1 — JUDUL (HOOK) ============ -->
+<section class="slide dark active" data-notes="HOOK (jeda dramatis 2 detik): 'Bayangkan, di satu hari yang sama, ratusan pekerja kontraktor masuk dan keluar plant. Berapa yang masih punya kartu berlaku? Berapa yang dilarang masuk tapi tetap lolos? Tanpa melihat satu pun secara fisik, tahukah Anda jawabannya?' — lalu perkenalkan judul. Intonasi turun di akhir hook, tatap audiens, gesture telapak tangan terbuka. Durasi ±1.5 menit.">
+  <div class="slide-body">
+    <span class="kicker">Sulfindo Adiusaha · K3 & Manajemen Kontraktor</span>
+    <div class="hook">Satu hari, ratusan orang masuk ke plant.<br><span class="hl">Berapa yang benar-benar kita kenali?</span></div>
+    <h1 style="color:#fff;">ID Card System</h1>
+    <p class="sub" style="font-size:20px; color:#CBD5E1;">Satu Kartu, Satu Identitas, Kendali Penuh.<br>Pengenalan sistem manajemen kartu, kehadiran &amp; pengawasan K3 kontraktor.</p>
+    <div style="display:flex; gap:16px; align-items:center; margin-top:18px;">
+      <span class="badge-demo">30 Menit · 17 Slide</span>
+    </div>
+  </div>
+  <div class="footer">Presentasi Pengenalan · Tim IT</div>
+</section>
+
+<!-- ============ SLIDE 2 — AGENDA ============ -->
+<section class="slide" data-notes="Cepat, tempo sedang: 'Kita berangkat dari masalah, lalu saya tunjukkan alatnya, dan terakhir bagaimana dipakai besok pagi.' Jangan bertele-tele. Durasi ±1 menit.">
+  <div class="slide-body">
+    <span class="kicker">Agenda</span>
+    <h2><span class="num">2</span>Peta Perjalanan 30 Menit</h2>
+    <div class="agenda">
+      <div class="a"><span class="n">1</span><div><div class="t">Masalah Kita</div><div class="d">Tantangan identitas &amp; kehadiran tanpa sistem — 7 menit</div></div></div>
+      <div class="a"><span class="n">2</span><div><div class="t">Solusi: ID Card System</div><div class="d">Kartu, cetak, registrasi, check-in/out, plant display, blacklist, dashboard — 16 menit</div></div></div>
+      <div class="a"><span class="n">3</span><div><div class="t">Alur Sehari-hari &amp; Manfaat</div><div class="d">Demo &amp; langkah berikutnya — 6 menit</div></div></div>
+    </div>
+  </div>
+  <div class="footer">ID Card System · Pengenalan</div>
+</section>
+
+<!-- ============ SLIDE 3 — TANTANGAN KITA ============ -->
+<section class="slide" data-notes="Bangun konteks: 'Kita bekerja di area yang ramai: banyak PT kontraktor, ratusan man power masuk-keluar tiap hari. Setiap orang punya satu NIK, satu kartu, satu perusahaan, satu plant. Yang kita butuh: tahu siapa di dalam, kapan masuk, kapan keluar, berapa jam bekerja.' Durasi ±1.5 menit.">
+  <div class="slide-body">
+    <span class="kicker">Konteks</span>
+    <h2><span class="num">3</span>Tantangan Kita</h2>
+    <div class="row">
+      <div class="card grow"><i style="color:var(--teal);">🏭</i><h4>Area Plant yang Ramai</h4><p>Banyak perusahaan kontraktor bekerja bersamaan di dalam satu area industri.</p></div>
+      <div class="card grow"><i style="color:var(--teal);">👥</i><h4>Ratusan Man Power</h4><p>Pekerja masuk dan keluar setiap hari — identitasnya harus jelas &amp; terverifikasi.</p></div>
+      <div class="card grow"><i style="color:var(--teal);">🪪</i><h4>Satu Orang = Satu Identitas</h4><p>Satu NIK KTP, satu kartu, satu perusahaan, satu plant. Data ini harus akurat.</p></div>
+    </div>
+    <p class="sub" style="margin-top:26px; margin-bottom:0;">Kesimpulan: <b>identitas &amp; kehadiran adalah fondasi keselamatan kerja.</b></p>
+  </div>
+  <div class="footer">ID Card System · Pengenalan</div>
+</section>
+
+<!-- ============ SLIDE 4 — DULU TANPA SISTEM ============ -->
+<section class="slide" data-notes="Munculkan per poin satu-satu, tanyakan: 'Pernah mengalami ini?' Poin blacklist diberi jeda. Bangun empati, jangan menghakimi. Durasi ±1.5 menit.">
+  <div class="slide-body">
+    <span class="kicker">Masalah</span>
+    <h2><span class="num amber">4</span>Dulu, Tanpa Sistem</h2>
+    <div class="steps" style="max-width:760px;">
+      <li><span class="step-num red">1</span><div><b>Pendataan terpecah</b><span>Buku, file Excel per plant, ingatan petugas — tidak ada satu sumber kebenaran.</span></div></li>
+      <li><span class="step-num red">2</span><div><b>Kartu expired lolos masuk</b><span>Gate tidak tahu masa berlaku kartu secara real-time.</span></div></li>
+      <li><span class="step-num red">3</span><div><b>Blacklist tidak tertelusur</b><span>Siapa dilarang, kenapa, sampai kapan — tidak ada catatan terpusat.</span></div></li>
+      <li><span class="step-num red">4</span><div><b>Data real-time tidak ada</b><span>Kita tidak tahu siapa yang sedang berada di dalam plant.</span></div></li>
+      <li><span class="step-num red">5</span><div><b>Rekap manual, rawan salah</b><span>Kehadiran &amp; jam kerja lambat dihitung dan mudah keliru.</span></div></li>
+    </div>
+  </div>
+  <div class="footer">ID Card System · Pengenalan</div>
+</section>
+
+<!-- ============ SLIDE 5 — KENAPA INI TERJADI ============ -->
+<section class="slide" data-notes="Tekankan kata 'rapuh'. 'Kalau identitas tidak terdigitalisasi, kontrol tidak mungkin otomatis.' Beri contoh: satu orang lupa mencatat = data hilang. Durasi ±1.5 menit.">
+  <div class="slide-body">
+    <span class="kicker">Akar Masalah</span>
+    <h2><span class="num amber">5</span>Kenapa Ini Terjadi?</h2>
+    <div class="row">
+      <div class="grow" style="min-width:300px;">
+        <div class="steps">
+          <li><span class="step-num">1</span><div><b>Proses manual &amp; rapuh</b><span>Semua bergantung pada mata, ingatan, dan kertas.</span></div></li>
+          <li><span class="step-num">2</span><div><b>Data tersebar</b><span>Tidak ada satu database pusat yang menjadi rujukan.</span></div></li>
+          <li><span class="step-num">3</span><div><b>Tidak ada kontrol otomatis</b><span>Kartu kedaluwarsa &amp; orang dilarang tidak bisa ditegakkan sistem.</span></div></li>
+        </div>
+      </div>
+      <div class="card grow" style="align-self:center; background:var(--slate-100); border:0;">
+        <div style="text-align:center; font-size:13px; color:var(--slate-500); margin-bottom:14px;">Analogi: pintu tanpa kunci</div>
+        <div style="font-size:56px; text-align:center;">🚪🔓</div>
+        <p style="text-align:center; font-size:14.5px;">Siapa pun bisa masuk — kita hanya bisa menebak siapa yang lewat.</p>
+      </div>
+    </div>
+  </div>
+  <div class="footer">ID Card System · Pengenalan</div>
+</section>
+
+<!-- ============ SLIDE 6 — DAMPAK & RISIKO ============ -->
+<section class="slide" data-notes="Intonasi serius. 'Ini bukan soal kenyamanan, ini soal keselamatan orang dan akurasi uang.' Jeda sebelum slide solusi. Durasi ±1.5 menit.">
+  <div class="slide-body">
+    <span class="kicker">Dampak</span>
+    <h2><span class="num amber">6</span>Dampak &amp; Risiko</h2>
+    <div class="row">
+      <div class="card grow"><i style="color:var(--red);">❤️‍🩹</i><h4>K3</h4><p>Pekerja dilarang / kartu expired bisa masuk → risiko kecelakaan &amp; temuan audit.</p></div>
+      <div class="card grow"><i style="color:var(--amber);">💰</i><h4>Biaya</h4><p>Jam kerja salah hitung → klaim kontraktor tidak akurat, pembayaran salah.</p></div>
+      <div class="card grow"><i style="color:var(--navy);">⚖️</i><h4>Kepatuhan</h4><p>Tidak ada jejak audit siapa masuk &amp; keluar — sulit diverifikasi.</p></div>
+    </div>
+    <p class="sub" style="margin-top:26px; margin-bottom:0;">Dampak nyata: <b>identitas tidak terkontrol = risiko K3, biaya, dan reputasi.</b></p>
+  </div>
+  <div class="footer">ID Card System · Pengenalan</div>
+</section>
+
+<!-- ============ SLIDE 7 — SOLUSI ============ -->
+<section class="slide" data-notes="Jelaskan alur seperti rantai: 'Jika satu mata rantai putus, seluruh sistem terganggu.' Semua komponen terhubung ke satu database. Durasi ±2 menit.">
+  <div class="slide-body">
+    <span class="kicker">Solusi</span>
+    <h2><span class="num" style="background:var(--teal);">7</span>Solusi: ID Card System</h2>
+    <p class="sub">Satu basis data pusat untuk identitas, kartu, kehadiran, dan sanksi. Semua komponen terhubung.</p>
+    <div class="flow">
+      <div class="node"><i>🪪</i><b>Registrasi</b></div>
+      <div class="arrow">→</div>
+      <div class="node"><i>🖨️</i><b>Cetak Kartu</b></div>
+      <div class="arrow">→</div>
+      <div class="node"><i>✅</i><b>Masuk Plant (Scan)</b></div>
+      <div class="arrow">→</div>
+      <div class="node"><i>👋</i><b>Keluar (Scan)</b></div>
+      <div class="arrow">→</div>
+      <div class="node"><i>📊</i><b>Data di Dashboard</b></div>
+    </div>
+    <div class="row" style="margin-top:28px;">
+      <div class="card grow" style="align-items:center; flex-direction:row; gap:14px; padding:14px 18px;"><span style="font-size:24px;">📊</span><div><b>Dashboard KPI</b><p style="margin:0;">Satu layar: seluruh angka penting</p></div></div>
+      <div class="card grow" style="align-items:center; flex-direction:row; gap:14px; padding:14px 18px;"><span style="font-size:24px;">📲</span><div><b>Registrasi Mobile</b><p style="margin:0;">OCR KTP dari HP</p></div></div>
+      <div class="card grow" style="align-items:center; flex-direction:row; gap:14px; padding:14px 18px;"><span style="font-size:24px;">🖥️</span><div><b>Plant Display</b><p style="margin:0;">Status real-time di TV plant</p></div></div>
+    </div>
+  </div>
+  <div class="footer">ID Card System · Pengenalan</div>
+</section>
+
+<!-- ============ SLIDE 8 — ID CARD DIGITAL + QR ============ -->
+<section class="slide" data-notes="Tunjukkan QR sebagai 'sidik jari digital'. 'Kalau kartu hilang, QR tetap terhubung ke identitas orang di sistem.' Durasi ±2 menit.">
+  <div class="slide-body">
+    <span class="kicker">Fitur</span>
+    <h2><span class="num" style="background:var(--teal);">8</span>ID Card Digital + QR</h2>
+    <div class="row" style="align-items:center;">
+      <div class="grow">
+        <div class="steps">
+          <li><span class="step-num">1</span><div><b>Kartu lengkap</b><span>Foto, nama, NIK KTP, perusahaan, plant, masa berlaku.</span></div></li>
+          <li><span class="step-num">2</span><div><b>QR Code unik</b><span>Identitas digital per orang — dipindai saat masuk/keluar.</span></div></li>
+          <li><span class="step-num">3</span><div><b>Status otomatis</b><span>Active / Banned / Non-Active terekam sistem.</span></div></li>
+          <li><span class="step-num">4</span><div><b>Expiry terpantau</b><span>Kartu kedaluwarsa otomatis ditolak saat scan.</span></div></li>
+        </div>
+      </div>
+      <div class="shot-wrap">
+        <img src="page=contractors.png" alt="Daftar kontraktor">
+        <div class="shot-cap">Screenshot: Daftar Man Power</div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">ID Card System · Pengenalan</div>
+</section>
+
+<!-- ============ SLIDE 9 — CETAK ID CARD ============ -->
+<section class="slide" data-notes="Tekankan kemudahan: 'Dulu buat kartu satu-satu dan lama. Sekarang pilih banyak orang, sekali cetak — 3 kartu per lembar A4.' Tunjukkan foto + QR. Durasi ±2 menit.">
+  <div class="slide-body">
+    <span class="kicker">Fitur</span>
+    <h2><span class="num" style="background:var(--teal);">9</span>Cetak ID Card</h2>
+    <div class="row" style="align-items:center;">
+      <div class="shot-wrap" style="flex:0 1 auto; max-width:420px;">
+        <img src="page=contractors&action=bulkPrint.png" alt="Halaman cetak massal ID Card">
+        <div class="shot-cap">Screenshot: Cetak Massal (bulk print)</div>
+      </div>
+      <div class="grow">
+        <div class="steps">
+          <li><span class="step-num">1</span><div><b>Cetak tunggal</b><span>Dari halaman kontraktor, cetak kartu per orang.</span></div></li>
+          <li><span class="step-num">2</span><div><b>Cetak massal</b><span>Pilih banyak man power → sekali cetak.</span></div></li>
+          <li><span class="step-num">3</span><div><b>3 kartu per lembar A4</b><span>Format standar ±68,5 × 97 mm, hemat kertas.</span></div></li>
+          <li><span class="step-num">4</span><div><b>Lengkap &amp; seragam</b><span>Foto + QR + nama + perusahaan + plant, background per plant.</span></div></li>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">ID Card System · Pengenalan</div>
+</section>
+
+<!-- ============ SLIDE 10 — REGISTRASI MOBILE (OCR KTP) ============ -->
+<section class="slide" data-notes="Analogi scan di minimarket: 'Sekali pindai KTP, datanya masuk.' Petugas tidak mengetik NIK panjang. Durasi ±2 menit.">
+  <div class="slide-body">
+    <span class="kicker">Fitur</span>
+    <h2><span class="num" style="background:var(--teal);">10</span>Registrasi Mobile — OCR KTP</h2>
+    <div class="row" style="align-items:center;">
+      <div class="grow">
+        <div class="steps">
+          <li><span class="step-num">1</span><div><b>Foto KTP dari HP</b><span>Man power baru daftar lewat aplikasi mobile.</span></div></li>
+          <li><span class="step-num">2</span><div><b>OCR membaca otomatis</b><span>NIK, Nama, Alamat terisi tanpa ketik manual.</span></div></li>
+          <li><span class="step-num">3</span><div><b>Data ter-sync</b><span>Dari cloud ke sistem lokal otomatis.</span></div></li>
+          <li><span class="step-num">4</span><div><b>Verifikasi admin</b><span>Set perusahaan &amp; plant, kartu siap cetak.</span></div></li>
+        </div>
+        <p class="sub" style="margin-top:22px; margin-bottom:0;">Hasil: registrasi yang tadinya berjam-jam → <b>hitungan menit.</b></p>
+      </div>
+      <div class="card grow" style="align-self:center; background:var(--slate-100); border:0; text-align:center;">
+        <div style="font-size:64px;">📱</div>
+        <div style="font-size:14px; color:var(--slate-500); margin-top:8px;">Aplikasi mobile<br>+ kamera OCR</div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">ID Card System · Pengenalan</div>
+</section>
+
+<!-- ============ SLIDE 11 — CHECK-IN / CHECK-OUT ============ -->
+<section class="slide" data-notes="Jelaskan hitungan jam: 'Sistem menghitung otomatis dari check-in ke check-out. Ini basis klaim jam kerja yang akurat.' Durasi ±2 menit.">
+  <div class="slide-body">
+    <span class="kicker">Fitur</span>
+    <h2><span class="num" style="background:var(--teal);">11</span>Check-in / Check-out</h2>
+    <div class="row" style="align-items:center;">
+      <div class="grow">
+        <div class="steps">
+          <li><span class="step-num">1</span><div><b>Scan masuk</b><span>Waktu check-in tercatat otomatis.</span></div></li>
+          <li><span class="step-num">2</span><div><b>Scan keluar</b><span>Waktu check-out + jam kerja dihitung sistem.</span></div></li>
+          <li><span class="step-num">3</span><div><b>Per plant</b><span>Lokasi disesuaikan: CA, EDC, VCM, PVC, dan lainnya.</span></div></li>
+          <li><span class="step-num">4</span><div><b>Otomatis menolak</b><span>Scan dini &lt;5 menit, kartu banned, kartu expired.</span></div></li>
+        </div>
+      </div>
+      <div class="shot-wrap">
+        <img src="page=attendance-a.png" alt="Log kehadiran">
+        <div class="shot-cap">Screenshot: Log Kehadiran</div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">ID Card System · Pengenalan</div>
+</section>
+
+<!-- ============ SLIDE 12 — PLANT DISPLAY ============ -->
+<section class="slide dark" data-notes="'Kalau ada insiden, kita langsung tahu siapa yang masih di dalam. Itu menyelamatkan waktu dan nyawa.' Durasi ±1.5 menit.">
+  <div class="slide-body">
+    <span class="kicker">Fitur</span>
+    <h2><span class="num" style="background:var(--amber);">12</span>Plant Display Real-time</h2>
+    <div class="row" style="align-items:center;">
+      <div class="grow">
+        <div class="steps">
+          <li><span class="step-num amber">1</span><div><b>Layar TV di plant</b><span>Menampilkan jumlah kontraktor yang sedang berada di dalam.</span></div></li>
+          <li><span class="step-num amber">2</span><div><b>Rincian per PT</b><span>Bukan cuma total — berapa orang per perusahaan.</span></div></li>
+          <li><span class="step-num amber">3</span><div><b>Petugas on duty</b><span>Info siapa petugas yang bertugas.</span></div></li>
+          <li><span class="step-num amber">4</span><div><b>Update otomatis</b><span>Langsung berubah saat ada check-in/out.</span></div></li>
+        </div>
+      </div>
+      <div class="shot-wrap">
+        <img src="page=plant-display.png" alt="Plant display">
+        <div class="shot-cap">Screenshot: Plant Display</div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">ID Card System · Pengenalan</div>
+</section>
+
+<!-- ============ SLIDE 13 — BLACKLIST, SANKSI & EXPIRED ============ -->
+<section class="slide" data-notes="'Kalau dulu ada yang katanya dilarang, sekarang sistem sendiri yang menolak scan-nya. Tidak ada negosiasi.' Durasi ±2 menit.">
+  <div class="slide-body">
+    <span class="kicker">Fitur</span>
+    <h2><span class="num" style="background:var(--teal);">13</span>Blacklist, Sanksi &amp; Expired</h2>
+    <div class="row" style="align-items:center;">
+      <div class="grow">
+        <div class="steps">
+          <li><span class="step-num red">1</span><div><b>Sanksi SP1 / SP2 / BANNED</b><span>Dengan alasan &amp; masa berlaku tercatat.</span></div></li>
+          <li><span class="step-num red">2</span><div><b>Auto-ban</b><span>Tidak check-out tepat waktu → otomatis dilarang.</span></div></li>
+          <li><span class="step-num">3</span><div><b>Reaktivasi otomatis</b><span>Sanksi selesai → status pulih sendiri.</span></div></li>
+          <li><span class="step-num">4</span><div><b>Halaman Expired</b><span>Daftar man power yang kartunya perlu diperpanjang.</span></div></li>
+        </div>
+      </div>
+      <div class="shot-wrap">
+        <img src="page=sanctions.png" alt="Halaman sanksi / blacklist">
+        <div class="shot-cap">Screenshot: Sanksi &amp; Blacklist</div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">ID Card System · Pengenalan</div>
+</section>
+
+<!-- ============ SLIDE 14 — DASHBOARD & PELAPORAN ============ -->
+<section class="slide" data-notes="Tunjukkan KPI satu per satu. 'Data yang dulu dikumpulkan berhari-hari, sekarang ada di layar dan bisa diunduh satu klik.' Durasi ±2 menit.">
+  <div class="slide-body">
+    <span class="kicker">Fitur</span>
+    <h2><span class="num" style="background:var(--teal);">14</span>Dashboard &amp; Pelaporan</h2>
+    <div class="row" style="align-items:flex-start;">
+      <div class="grow">
+        <div class="steps" style="gap:10px;">
+          <li><span class="step-num">1</span><div><b>Dashboard KPI</b><span>Man Hours Without LTI · kontraktor dalam plant · pelanggaran · expired.</span></div></li>
+          <li><span class="step-num">2</span><div><b>Grafik</b><span>Distribusi kontraktor per plant &amp; jumlah per perusahaan.</span></div></li>
+          <li><span class="step-num">3</span><div><b>Log kehadiran</b><span>Per Perusahaan (PT) &amp; per Man Power.</span></div></li>
+          <li><span class="step-num">4</span><div><b>Filter &amp; Export</b><span>Hari / minggu / bulan / tahun + plant → CSV, XLSX, PDF.</span></div></li>
+        </div>
+      </div>
+      <div class="grow" style="min-width:300px;">
+        <div class="shot-wrap" style="max-width:none;">
+          <img src="dashboard.png" alt="Dashboard">
+          <div class="shot-cap">Screenshot: Dashboard</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">ID Card System · Pengenalan</div>
+</section>
+
+<!-- ============ SLIDE 15 — ALUR SEHARI-HARI ============ -->
+<section class="slide" data-notes="Ceritakan seperti narasi waktu pagi→sore. Buat audiens membayangkan besok mereka melakukannya. Durasi ±2 menit.">
+  <div class="slide-body">
+    <span class="kicker">Studi Kasus</span>
+    <h2><span class="num" style="background:var(--teal);">15</span>Alur Sehari-hari</h2>
+    <div class="steps" style="max-width:860px;">
+      <li><span class="step-num amber">☀️</span><div><b>Pagi — Registrasi</b><span>Man power baru daftar via HP (OCR KTP) → diverifikasi admin.</span></div></li>
+      <li><span class="step-num amber">🖨️</span><div><b>Siang — Cetak &amp; Masuk</b><span>Kartu dicetak (3/lembar) → man power scan masuk.</span></div></li>
+      <li><span class="step-num">🖥️</span><div><b>Kerja — Terpantau</b><span>Plant display menunjukkan jumlah &amp; PT yang sedang di dalam.</span></div></li>
+      <li><span class="step-num">🌙</span><div><b>Sore — Keluar</b><span>Scan keluar → jam kerja tercatat otomatis.</span></div></li>
+      <li><span class="step-num">📊</span><div><b>Bulanan — Laporan</b><span>Admin export kehadiran (CSV / XLSX / PDF).</span></div></li>
+    </div>
+  </div>
+  <div class="footer">ID Card System · Pengenalan</div>
+</section>
+
+<!-- ============ SLIDE 16 — HASIL & MANFAAT ============ -->
+<section class="slide" data-notes="Bangga & optimis. Akhiri: 'Ini bukan sekadar aplikasi — ini cara kita menjaga orang pulang dengan selamat.' Durasi ±2 menit.">
+  <div class="slide-body">
+    <span class="kicker">Nilai</span>
+    <h2><span class="num" style="background:var(--emerald);">16</span>Hasil &amp; Manfaat</h2>
+    <div class="row">
+      <div class="card grow"><i style="color:var(--emerald);">🗄️</i><h4>Identitas terpusat</h4><p>Satu data benar untuk semua plant.</p></div>
+      <div class="card grow"><i style="color:var(--emerald);">🛡️</i><h4>Kontrol otomatis</h4><p>Banned &amp; expired tidak bisa masuk.</p></div>
+      <div class="card grow"><i style="color:var(--emerald);">🕐</i><h4>Data real-time</h4><p>Siapa di dalam plant, kapan pun.</p></div>
+      <div class="card grow"><i style="color:var(--emerald);">🎯</i><h4>Akurasi jam kerja</h4><p>Klaim &amp; laporan berbasis data.</p></div>
+      <div class="card grow"><i style="color:var(--emerald);">🧾</i><h4>Audit &amp; kepatuhan</h4><p>Jejak lengkap masuk-keluar.</p></div>
+      <div class="card grow"><i style="color:var(--emerald);">⚡</i><h4>Efisiensi</h4><p>Registrasi &amp; cetak cepat, rekap otomatis.</p></div>
+    </div>
+    <p class="sub" style="margin-top:26px; margin-bottom:0; font-size:18px;"><b>Dari "menebak" menjadi "mengetahui" — keputusan K3 berbasis data.</b></p>
+  </div>
+  <div class="footer">ID Card System · Pengenalan</div>
+</section>
+
+<!-- ============ SLIDE 17 — AJAK BERTINDAK & Q&A ============ -->
+<section class="slide dark" data-notes="Tegas & hangat. 'Pertanyaan terbaik adalah yang muncul dari pengalaman Anda sehari-hari.' Tekankan peran masing-masing tim. Durasi ±2 menit + Q&A.">
+  <div class="slide-body">
+    <span class="kicker">Ajak Bertindak</span>
+    <h2><span class="num" style="background:var(--amber);">17</span>Peran Kita Semua</h2>
+    <div class="row">
+      <div class="card grow"><span style="font-size:30px;">🦺</span><h4>P2K3</h4><p>Verifikasi sanksi, pantau blacklist &amp; man power expired.</p></div>
+      <div class="card grow"><span style="font-size:30px;">🖥️</span><h4>Admin Plant</h4><p>Registrasi, cetak kartu, kelola check-in/out harian.</p></div>
+      <div class="card grow"><span style="font-size:30px;">🚧</span><h4>Petugas Gate</h4><p>Pastikan setiap scan masuk-keluar selalu dilakukan.</p></div>
+    </div>
+    <div style="display:flex; align-items:center; gap:24px; margin-top:34px; flex-wrap:wrap;">
+      <span class="cta">Besok Mulai Scan ✓</span>
+      <div>
+        <div style="font-weight:800; font-size:18px;">Langkah berikutnya</div>
+        <p class="sub" style="margin:4px 0 0;">Demo hands-on + jadwal pelatihan per plant.<br>Silakan ajukan pertanyaan.</p>
+      </div>
+    </div>
+  </div>
+  <div class="footer">ID Card System · Pengenalan · Terima kasih 🙏</div>
+</section>
+
+<!-- ============ NAV ============ -->
+<div class="nav">
+  <button id="prev" title="Sebelumnya">←</button>
+  <button id="next" title="Berikutnya">→</button>
+  <button id="notes" title="Catatan presenter">📝</button>
+</div>
+<div class="speaker-note" id="note"></div>
+
+<script>
+(function () {
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  let cur = 0;
+  const counter = document.getElementById('counter');
+  const progress = document.getElementById('progress');
+  const note = document.getElementById('note');
+
+  function show(i) {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, idx) => s.classList.toggle('active', idx === cur));
+    counter.textContent = (cur + 1) + ' / ' + slides.length;
+    progress.style.width = ((cur + 1) / slides.length * 100) + '%';
+    note.classList.remove('show');
+  }
+
+  document.getElementById('next').addEventListener('click', () => show(cur + 1));
+  document.getElementById('prev').addEventListener('click', () => show(cur - 1));
+  document.getElementById('notes').addEventListener('click', () => {
+    note.textContent = slides[cur].dataset.notes || '';
+    note.classList.toggle('show');
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); show(cur + 1); }
+    if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); show(cur - 1); }
+    if (e.key === 'n' || e.key === 'N') document.getElementById('notes').click();
+    if (e.key === 'Home') show(0);
+    if (e.key === 'End') show(slides.length - 1);
+  });
+
+  show(0);
+})();
+</script>
+</body>
+</html>
